@@ -3,6 +3,7 @@ use crate::scripting::context::Context;
 use rune::{ContextError, Module};
 use rust_embed::RustEmbed;
 use std::collections::HashMap;
+use alternator_driver::*;
 
 mod bind;
 pub mod cass_error;
@@ -96,6 +97,10 @@ fn try_install(
     rune_ctx.install(&uuid_module)?;
     rune_ctx.install(&latte_module)?;
     rune_ctx.install(&fs_module)?;
+    let driver_module = Module::with_crate("alternator_driver")?;
+    rune_ctx.install(&driver_module)?;
+    let mut config_module = Module::with_crate("aws_config")?;
+    rune_ctx.install(&config_module)?;
 
     Ok(())
 }

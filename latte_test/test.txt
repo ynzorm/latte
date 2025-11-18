@@ -1,0 +1,26 @@
+./latte_test/docker.sh
+
+latte schema workloads/basic/read.rn 172.17.0.2
+latte load workloads/basic/read.rn 172.17.0.2
+latte run workloads/basic/read.rn 172.17.0.2 --generate-report -o latte_test/read_test.json
+
+latte plot -t latte_test/data_validation_get.json -o latte_test/data_validation_get.svg
+
+latte schema workloads/data_validation.rn 172.17.0.2
+latte run --generate-report -o latte_test/data_validation_insert.json workloads/data_validation.rn -q -d 100000 \
+-r 100000 -P row_count=100000 -P rows_per_partition=1 -P partition_sizes="\"50:4,50:6\"" -f insert -- 172.17.0.2
+latte run --generate-report -o latte_test/data_validation_get.json workloads/data_validation.rn -q -d 100000 \ 
+-r 100000 -P row_count=100000 -P rows_per_partition=1 -P partition_sizes="\"50:4,50:6\"" -f get_by_ck -- 172.17.0.2
+
+-r rate, Number of cycles per second to execute
+-q no progress benchmark
+-d number of cycles
+-P parameters of the workload
+
+latte plot -t latte_test/data_validation_insert.json -o latte_test/data_validation_insert.svg
+latte plot -t latte_test/data_validation_get.json -o latte_test/data_validation_get.svg
+
+latte run --generate-report -o latte_test/data_validation_mix.json workloads/data_validation.rn -q -d 100000 \
+-r 100000 -P row_count=100000 -P rows_per_partition=1 -P partition_sizes="\"50:4,50:6\"" -f insert:0.8 get:0.2 -- 172.17.0.2
+
+latte plot -t latte_test/data_validation_mix.json -o latte_test/data_validation_mix.svg

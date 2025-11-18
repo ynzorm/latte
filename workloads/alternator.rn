@@ -1,0 +1,84 @@
+pub async fn schema(ctx) {
+    let dynamo_config = ctx.aws_config::defaults(ctx.aws_config::BehaviorVersion::latest())
+        .region("us-east-1") // Region doesn't matter for local
+        .endpoint_url("http://172.17.0.2:8000")
+        .credentials_provider(ctx.aws_config::Credentials::new("DUMMY", "DUMMY", None, None, "local"))
+        .load()
+        .await;
+
+    let dynamo_client = ctx.alternator_driver::Client::new(dynamo_config);
+    dynamo_client
+        .create_table()
+        .table_name("latte_test_table")
+        .key_schema(
+            ctx.alternator_driver::types::KeySchemaElement::builder()
+                .attribute_name("id")
+                .key_type(ctx.alternator_driver::types::KeyType::Hash)
+                .build()
+                .unwrap(),
+        )
+        .attribute_definitions(
+            ctx.alternator_driver::types::AttributeDefinition::builder()
+                .attribute_name("id")
+                .attribute_type(ctx.alternator_driver::types::ScalarAttributeType::S)
+                .build()
+                .unwrap(),
+        )
+        .billing_mode(ctx.alternator_driver::types::BillingMode::PayPerRequest)
+        .send()
+        .await
+        .unwrap();
+    println!("Table created successfully");
+}
+
+pub async fn dynamo_put_item(ctx, table_name, id, data) {
+    let dynamo_config = ctx.aws_config::defaults(ctx.aws_config::BehaviorVersion::latest())
+        .region("us-east-1") // Region doesn't matter for local
+        .endpoint_url("http://172.17.0.2:8000")
+        .credentials_provider(ctx.aws_config::Credentials::new("DUMMY", "DUMMY", None, None, "local"))
+        .load()
+        .await;
+
+    let dynamo_client = ctx.alternator_driver::Client::new(dynamo_config);
+    dynamo_client
+        .put_item()
+        .table_name(table_name.deref())
+        .item("id", ctx.alternator_driver::types::AttributeValue::S(id.to_string()))
+        .item("data", ctx.alternator_driver::types::AttributeValue::S(data.to_string()))
+        .send()
+        .await
+        .unwrap();
+}
+
+pub async fn dynamo_get_item(ctx, table_name, id) {
+    let dynamo_config = ctx.aws_config::defaults(ctx.aws_config::BehaviorVersion::latest())
+        .region("us-east-1") // Region doesn't matter for local
+        .endpoint_url("http://172.17.0.2:8000")
+        .credentials_provider(ctx.aws_config::Credentials::new("DUMMY", "DUMMY", None, None, "local"))
+        .load()
+        .await;
+
+    let dynamo_client = ctx.alternator_driver::Client::new(dynamo_config);
+    let result = dynamo_client
+        .get_item()
+        .table_name(table_name.deref())
+        .key("id", ctx.alternator_driver::types::AttributeValue::S(id.to_string()))
+        .send()
+        .await
+        .unwrap();
+
+    if let Some(item) = result.item {
+        if let Some(data) = item.get("data") {
+            return data.clone();
+        }
+    }
+
+    String::new()
+}
+
+pub async fn run(ctx, i) {
+    let id = `item_${latte::hash(i)}`;
+
+    dynamo_put_item("latte_test_table", id, "test data value").await;
+    dynamo_get_item("latte_test_table", id).await;
+}
