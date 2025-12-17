@@ -1,0 +1,56 @@
+use latte::*;
+
+const ROW_COUNT = latte::param!("row_count", 1000000);
+const OFFSET = latte::param!("offset", 0);
+const ROWS_PER_PARTITION = latte::param!("rows_per_partition", 1);
+// NOTE: 'partition_sizes' defines set of 'percent:multiplier' pairs to create multi-row partitions
+// of different sizes. Example: '95:1,4:2,1:4'
+const PARTITION_SIZES = latte::param!("partition_sizes", "100:1");
+
+const TABLE = "validation";
+
+pub async fn schema(db) {
+    db.create_table(TABLE, #{primary_key: #{name: "pk", type: "N"}, sort_key: #{name: "ck", type: "N"}}).await?;
+}
+
+pub async fn erase(db) {
+    db.delete_table(TABLE).await?
+}
+
+pub async fn prepare(db) {
+    db.init_partition_row_distribution_preset("main", ROW_COUNT, ROWS_PER_PARTITION, PARTITION_SIZES).await?;
+}
+
+pub async fn insert(db, i) {
+    let idx = i % ROW_COUNT + OFFSET;
+    let partition = db.get_partition_info("main", idx).await;
+    partition.idx += OFFSET;
+    let pk = hash(partition.idx);
+    let ck = hash(idx);
+    db.put_item(TABLE, #{pk: pk, ck: ck}).await?;
+}
+
+pub async fn get(db, i) {
+    let idx = i % ROW_COUNT + OFFSET;
+    let partition = db.get_partition_info("main", idx).await;
+    partition.idx += OFFSET;
+    let pk = hash(partition.idx);
+    let _items = db.alternator_get_many_validate(TABLE, pk, 1, 1).await?;
+}
+
+pub async fn get_many(db, i) {
+    let idx = i % ROW_COUNT + OFFSET;
+    let partition = db.get_partition_info("main", idx).await;
+    partition.idx += OFFSET;
+    let pk = hash(partition.idx);
+    let max_limit = partition.rows_num + 10;
+    let _items = db.alternator_get_many_validate(TABLE, pk, max_limit, partition.rows_num).await?;
+}
+
+pub async fn count(db, i) {
+    let idx = i % ROW_COUNT + OFFSET;
+    let partition = db.get_partition_info("main", idx).await;
+    partition.idx += OFFSET;
+    let pk = hash(partition.idx);
+    let _count = db.alternator_count_validate(TABLE, pk, partition.rows_num).await?;
+}

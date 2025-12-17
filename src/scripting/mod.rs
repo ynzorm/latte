@@ -93,7 +93,13 @@ fn try_install(
     rune_ctx: &mut rune::Context,
     params: HashMap<String, String>,
 ) -> Result<(), ContextError> {
-    let context_module = init_context_module()?;
+    use alternator::functions;
+    let mut context_module = init_context_module()?;
+    context_module.function_meta(functions::create_table)?;
+    context_module.function_meta(functions::delete_table)?;
+    context_module.function_meta(functions::put_item)?;
+    context_module.function_meta(functions::alternator_get_many_validate)?;
+    context_module.function_meta(functions::alternator_count_validate)?;
     let err_module = init_error_module()?;
     let uuid_module = init_uuid_module()?;
     let latte_module = init_latte_module(params)?;
