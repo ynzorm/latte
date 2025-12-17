@@ -13,7 +13,7 @@ use try_lock::TryLock;
 
 #[derive(Any)]
 pub struct Context {
-    client: Option<Client>,
+    pub client: Option<Client>,
     pub stats: TryLock<SessionStats>,
     pub start_time: TryLock<Instant>,
     pub retry_number: u64,
