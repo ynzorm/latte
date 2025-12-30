@@ -2,12 +2,12 @@ use crate::scripting::functions_common::extract_validation_args;
 
 use super::alternator_error::{AlternatorError, AlternatorErrorKind};
 use super::context::Context;
-use super::types::rune_object_to_alternator_map;
+use super::types::{alternator_map_to_rune_object, rune_object_to_alternator_map};
 use aws_sdk_dynamodb::types::{
     AttributeDefinition, KeySchemaElement, KeyType, ScalarAttributeType,
 };
 use rune::runtime::{Object, Ref, Shared};
-use rune::Value;
+use rune::{ToValue, Value};
 use std::collections::HashMap;
 use std::ops::Deref;
 
@@ -201,19 +201,23 @@ pub async fn delete(
 ///
 /// The `options` object can be replaced with `()` if no options are needed.
 ///
+/// If `with_result` is set to true, an `Option<Value>` containing the item if present is returned.
+/// Otherwise the unit value is returned.
+///
 /// # Arguments
 /// * `table_name` - The name of the table.
 /// * `key` - The primary key of the item to get. An object containing the partition key
 ///   (and sort key if the table has one).
 /// * `options` - Optional parameters object:
 ///   - `consistent_read`: Boolean to enable consistent read (default: false).
+///   - `with_result`: If true, the result item is returned (default: false).
 #[rune::function(instance)]
 pub async fn get(
     ctx: Ref<Context>,
     table_name: Ref<str>,
     key: Ref<Object>,
     options: Value,
-) -> Result<(), AlternatorError> {
+) -> Result<Value, AlternatorError> {
     let client = ctx.get_client()?;
 
     let mut builder = client
@@ -221,15 +225,28 @@ pub async fn get(
         .table_name(table_name.deref())
         .set_key(Some(rune_object_to_alternator_map(key)?));
 
-    if let Value::Object(opts) = options {
-        if let Some(Value::Bool(consistent_read)) = opts.into_ref()?.get("consistent_read") {
+    if let Value::Object(opts) = &options {
+        if let Some(Value::Bool(consistent_read)) = opts.borrow_ref()?.get("consistent_read") {
             builder = builder.consistent_read(*consistent_read);
         }
     }
 
-    builder.send().await?;
+    let output = builder.send().await?;
 
-    Ok(())
+    if let Value::Object(opts) = &options {
+        if let Some(Value::Bool(with_result)) = opts.borrow_ref()?.get("with_result") {
+            if *with_result {
+                return Ok(output
+                    .item
+                    .map(alternator_map_to_rune_object)
+                    .transpose()?
+                    .to_value()
+                    .into_result()?);
+            }
+        }
+    }
+
+    Ok(Value::EmptyTuple)
 }
 
 /// Updates an item in the table.
@@ -278,6 +295,9 @@ pub async fn update(
 
 /// Queries items from the table.
 ///
+/// If `with_result` is set to true, the query result is returned as a `Vec<Object>`.
+/// Otherwise, the unit value is returned.
+///
 /// # Arguments
 /// * `table_name` - The name of the table.
 /// * `params` - Parameters for the query operation. An object containing:
@@ -288,12 +308,13 @@ pub async fn update(
 ///   - `consistent_read`: Boolean to enable consistent read (default: false).
 ///   - `limit`: The maximum number of items to evaluate (optional).
 ///   - `validation`: An optional item count validation. Look at [extract_validation_args] for details.
+///   - `with_result`: If true, the query result is returned (default: false).
 #[rune::function(instance)]
 pub async fn query(
     ctx: Ref<Context>,
     table_name: Ref<str>,
     params: Ref<Object>,
-) -> Result<(), AlternatorError> {
+) -> Result<Value, AlternatorError> {
     let client = ctx.get_client()?;
 
     let mut builder = client.query().table_name(table_name.deref());
@@ -353,5 +374,18 @@ pub async fn query(
         }
     }
 
-    Ok(())
+    if let Some(Value::Bool(with_result)) = params.get("with_result") {
+        if *with_result {
+            return Ok(output
+                .items
+                .unwrap_or_default()
+                .into_iter()
+                .map(alternator_map_to_rune_object)
+                .collect::<Result<Vec<_>, _>>()?
+                .to_value()
+                .into_result()?);
+        }
+    }
+
+    Ok(Value::EmptyTuple)
 }
