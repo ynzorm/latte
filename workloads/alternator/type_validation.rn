@@ -1,0 +1,105 @@
+use latte::*;
+
+// Usage:
+// latte schema workloads/alternator/type_validation.rn http://172.17.0.2:8000
+// latte run -d 1 workloads/alternator/type_validation.rn http://172.17.0.2:8000
+
+const TABLE = "type_validation_table";
+
+pub async fn schema(db) {
+    db.delete_table(TABLE).await;
+    db.create_table(TABLE, "pk").await?;
+}
+
+pub async fn run(db, i) {
+    let pk = "item_" + i.to_string();
+    
+    let item = #{
+        pk: pk,
+        
+        // Boolean "AttributeValue::Bool"
+        bool_true: true,
+        bool_false: false,
+        
+        // Numbers "AttributeValue::N"
+        integer: 42,
+        float: 1.23,
+        
+        // String "AttributeValue::S"
+        test_string: "Hello, World!",
+        
+        // Binary "AttributeValue::B"
+        test_bytes: b"binary data",
+        
+        // List "AttributeValue::L"
+        test_list: [
+            1, 
+            "two", 
+            3.0, 
+            true, 
+            [1, 2], 
+            #{ key: "value" }
+        ],
+        test_empty_list: [],
+        
+        // Map "AttributeValue::M"
+        test_map: #{
+            nested_string: "nested",
+            nested_int: 100,
+            deep_nesting: #{
+                level: 2
+            }
+        },
+        
+        // Option - If Some, serialize the inner value; if None, serialize as Null
+        test_option_some: Some(42),
+        test_option_none: None,
+    };
+
+    db.put(TABLE, item).await?;
+    
+    // Retrieve the item and validate types
+    let result = db.get(TABLE, #{ pk: pk }, #{
+        with_result: true
+    }).await?.unwrap();
+
+    // The same can be achieved using query
+    // let result = db.query(TABLE, #{
+    //     query: "pk = :pk",
+    //     "attribute_values": #{
+    //         ":pk": pk
+    //     },
+    //     with_result: true
+    // }).await?[0];
+
+    assert!(result["bool_true"] == true);
+    assert!(result["bool_false"] == false);
+
+    assert!(result["integer"] == 42);
+    assert!(result["float"] is f64);
+    
+    assert!(result["test_string"] == "Hello, World!");
+
+    assert!(result["test_bytes"] ==  b"binary data");
+
+    assert!(result["test_list"] == [
+        1, 
+        "two", 
+        3.0, 
+        true, 
+        [1, 2], 
+        #{ key: "value" }
+    ]);
+    assert!(result["test_empty_list"] == []);
+
+    assert!(result["test_map"] == #{
+        nested_string: "nested",
+        nested_int: 100,
+        deep_nesting: #{
+            level: 2
+        }
+    });
+    
+    assert!(result["test_option_some"] == 42);
+    assert!(result["test_option_none"] == None);
+}
