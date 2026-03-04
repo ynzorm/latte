@@ -1,0 +1,106 @@
+// USAGE:
+// a) Create schema:
+// $ latte schema workloads/alternator/performance.rn http://172.17.0.2:8000
+//
+// b) run benchmark:
+// 1) 100% GetItem workload with set target throughput
+// $ latte run workloads/alternator/performance.rn http://172.17.0.2:8000 \
+//     -f get:1.0 -r <throughput>
+
+// 2) 100% UpdateItem workload with set target throughput
+// $ latte run workloads/alternator/performance.rn http://172.17.0.2:8000 \
+//     -f update:1.0 -r <throughput>
+
+// 3) 50% GetItem 50% UpdateItem mixed workload with set target throughput
+// $ latte run workloads/alternator/performance.rn http://172.17.0.2:8000 \
+//     -f get:0.5 -f update:0.5 -r <throughput>
+
+// 4) 100% GetItem with unlimited throughput
+// $ latte run workloads/alternator/performance.rn http://172.17.0.2:8000 \
+//     -f get:1.0
+
+// 5) 100% UpdateItem with unlimited throughput
+// $ latte run workloads/alternator/performance.rn http://172.17.0.2:8000 \
+//     -f update:1.0
+
+use latte::*;
+
+const TABLE = latte::param!("table", "latte_performance");
+const ROW_COUNT = latte::param!("row_count", 18000000);
+const DISTRIBUTION = latte::param!("distribution", "uniform");
+const CONSISTENT_READS = latte::param!("alternator.consistentReads", false);
+const FIELD_COUNT = latte::param!("fieldCount", 10);
+const FIELD_SIZE = latte::param!("fieldSize", 512);
+
+pub async fn schema(db) {
+    db.delete_table(TABLE).await;
+    db.create_table(TABLE, "pk").await?;
+}
+
+pub async fn prepare(ctx) {
+    ctx.load_cycle_count = ROW_COUNT;
+}
+
+// Generates a key index according to the selected distribution.
+fn get_key_idx(i) {
+    if DISTRIBUTION == "normal" {
+        // Use a normal distribution centered at ROW_COUNT / 2 with std_dev = ROW_COUNT / 10.
+        let row_count_f = ROW_COUNT as f64;
+        let mean = 0.5 * row_count_f;
+        let std_dev = 0.1 * row_count_f;
+        let val = latte::normal(i, mean, std_dev);
+
+        let clamped = if val < 0.0 {
+            0.0
+        } else if val > row_count_f - 1.0 {
+            row_count_f - 1.0
+        } else {
+            val
+        };
+        return ((clamped + 0.5) as i64).to_string();
+    }
+    if DISTRIBUTION == "uniform" {
+        let row_count_f = ROW_COUNT as f64;
+        let val = latte::uniform(i, 0.0, row_count_f - 1.0);
+        return ((val + 0.5) as i64).to_string();
+    }
+    return latte::hash_range(i, ROW_COUNT).to_string();
+}
+
+// Generates a payload with specified number of fields and size.
+fn generate_item(pk_str, i) {
+    let item = #{ pk: pk_str };
+    for f in 0..FIELD_COUNT {
+        item["field" + f.to_string()] = latte::text(latte::hash2(i, f), FIELD_SIZE);
+    }
+    return item;
+}
+
+pub async fn load(db, i) {
+    let pk_str = "key_" + i.to_string();
+    db.put(TABLE, generate_item(pk_str, i)).await?;
+}
+
+pub async fn get(db, i) {
+    let key_idx = get_key_idx(i);
+    let key = #{ pk: "key_" + key_idx };
+    db.get(TABLE, key, #{ consistent_read: CONSISTENT_READS }).await?;
+}
+
+pub async fn update(db, i) {
+    let key_idx = get_key_idx(i);
+    let key = #{ pk: "key_" + key_idx };
+
+    let expr = "SET ";
+    let values = #{};
+    for f in 0..FIELD_COUNT {
+        let f_str = f.to_string();
+        if f > 0 {
+            expr = expr + ", ";
+        }
+        expr = expr + "field" + f_str + "=:v" + f_str;
+        values[":v" + f_str] = latte::text(latte::hash2(i, f), FIELD_SIZE);
+    }
+
+    db.update(TABLE, key, #{ update: expr, attribute_values: values }).await?;
+}
