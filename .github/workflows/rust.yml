@@ -5,10 +5,14 @@ on:
     branches:
     - main
     - develop
+    - 'backport*'
+    - 'backport*/**'
   pull_request:
     branches:
     - main
     - develop
+    - 'backport*'
+    - 'backport*/**'
 
 env:
   CARGO_TERM_COLOR: always
