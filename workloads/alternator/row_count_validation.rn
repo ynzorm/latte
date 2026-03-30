@@ -7,7 +7,6 @@ use latte::*;
 // latte run workloads/alternator/row_count_validation.rn -d 1000 -f query_many http://172.17.0.2:8000
 
 const ROW_COUNT = latte::param!("row_count", 1000);
-const OFFSET = latte::param!("offset", 0);
 const ROWS_PER_PARTITION = latte::param!("rows_per_partition", 1);
 // NOTE: 'partition_sizes' defines set of 'percent:multiplier' pairs to create multi-row partitions
 // of different sizes. Example: '95:1,4:2,1:4'
@@ -26,9 +25,8 @@ pub async fn prepare(db) {
 }
 
 pub async fn insert(db, i) {
-    let idx = i % ROW_COUNT + OFFSET;
+    let idx = i % ROW_COUNT;
     let partition = db.get_partition_info("main", idx).await;
-    partition.idx += OFFSET;
     let pk = hash(partition.idx);
     let ck = hash(idx);
     
@@ -36,9 +34,8 @@ pub async fn insert(db, i) {
 }
 
 pub async fn query(db, i) {
-    let idx = i % ROW_COUNT + OFFSET;
+    let idx = i % ROW_COUNT;
     let partition = db.get_partition_info("main", idx).await;
-    partition.idx += OFFSET;
     let pk = hash(partition.idx);
 
     db.query(TABLE, #{
@@ -52,9 +49,8 @@ pub async fn query(db, i) {
 }
 
 pub async fn query_many(db, i) {
-    let idx = i % ROW_COUNT + OFFSET;
+    let idx = i % ROW_COUNT;
     let partition = db.get_partition_info("main", idx).await;
-    partition.idx += OFFSET;
     let pk = hash(partition.idx);
 
     db.query(TABLE, #{
