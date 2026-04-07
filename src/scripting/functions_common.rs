@@ -82,7 +82,7 @@ pub fn extract_validation_args(validation_args: Vec<Value>) -> Result<Validation
                 custom_err_msg: custom_err_msg.borrow_ref().unwrap().to_string(),
             })
         }
-        _ => Err("Invalid arguments for validation args".to_string()),
+        _ => Err("Invalid validation arguments".to_string()),
     }
 }
 

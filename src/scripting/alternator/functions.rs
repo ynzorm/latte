@@ -416,6 +416,10 @@ pub async fn update(
 
 /// Queries items from the table.
 ///
+/// Unlike `get`, which retrieves a single item by its exact primary key,
+/// `query` retrieves multiple items that share the same partition key.
+/// It also allows specifying conditions on the sort key and filtering the results based on non-key attributes.
+///
 /// If `with_result` is set to true, the query result is returned as a `Vec<Object>`.
 /// Otherwise, the unit value is returned.
 ///
