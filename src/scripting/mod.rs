@@ -9,7 +9,7 @@ mod row_distribution;
 pub mod rune_uuid;
 mod split_lines_iter;
 
-#[cfg(feature = "alternator")]
+#[cfg(any(feature = "alternator", feature = "alternator-new"))]
 mod alternator;
 #[cfg(feature = "cql")]
 mod cql;
@@ -21,11 +21,11 @@ pub use cql::connect;
 #[cfg(feature = "cql")]
 pub use cql::context;
 
-#[cfg(feature = "alternator")]
+#[cfg(any(feature = "alternator", feature = "alternator-new"))]
 pub use alternator::alternator_error as db_error;
-#[cfg(feature = "alternator")]
+#[cfg(any(feature = "alternator", feature = "alternator-new"))]
 pub use alternator::connect;
-#[cfg(feature = "alternator")]
+#[cfg(any(feature = "alternator", feature = "alternator-new"))]
 pub use alternator::context;
 
 #[derive(RustEmbed)]
@@ -88,7 +88,7 @@ fn try_install(
     Ok(())
 }
 
-#[cfg(feature = "alternator")]
+#[cfg(any(feature = "alternator", feature = "alternator-new"))]
 fn try_install(
     rune_ctx: &mut rune::Context,
     params: HashMap<String, String>,

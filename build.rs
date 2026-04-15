@@ -12,6 +12,8 @@ const UNKNOWN: &str = "unknown";
 const DRIVER_PKG_NAME: &str = "scylla";
 #[cfg(feature = "alternator")]
 const DRIVER_PKG_NAME: &str = "aws-sdk-dynamodb";
+#[cfg(feature = "alternator-new")]
+const DRIVER_PKG_NAME: &str = "alternator-driver";
 
 #[cfg(feature = "cql")]
 #[cfg(fetch_extended_version_info)]
@@ -111,7 +113,7 @@ mod driver_date_utils {
 }
 
 // TODO: Add proper alternator version info parser when building with fetch_extended_version_info
-#[cfg(feature = "alternator")]
+#[cfg(any(feature = "alternator", feature = "alternator-new"))]
 mod driver_date_utils {
     const UNKNOWN_EXTENDED: &str = "unknown ";
 
@@ -194,9 +196,18 @@ fn print_version(out_dir: OsString, commit_date: String, sha: String, lockfile: 
 }
 
 fn validate_features() {
-    #[cfg(all(feature = "cql", feature = "alternator"))]
+    #[cfg(all(
+        feature = "cql",
+        any(feature = "alternator", feature = "alternator-new")
+    ))]
     compile_error!("Features \"cql\" and \"alternator\" are mutually exclusive; enable only one.");
-    #[cfg(all(not(feature = "cql"), not(feature = "alternator")))]
+    #[cfg(all(feature = "alternator", feature = "alternator-new"))]
+    compile_error!("Choose a single alternator driver version.");
+    #[cfg(all(
+        not(feature = "cql"),
+        not(feature = "alternator"),
+        not(feature = "alternator-new")
+    ))]
     compile_error!(
         "Exactly one of the features \"cql\" and \"alternator\" is required to be enabled."
     );

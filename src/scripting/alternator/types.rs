@@ -1,5 +1,5 @@
 use super::alternator_error::{AlternatorError, AlternatorErrorKind};
-use aws_sdk_dynamodb::types::AttributeValue;
+use super::driver::types::AttributeValue;
 use rune::runtime::{Bytes, Object, Ref};
 use rune::{ToValue, Value};
 use std::collections::HashMap;

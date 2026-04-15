@@ -1,4 +1,4 @@
-use aws_sdk_dynamodb::error::{ProvideErrorMetadata, SdkError};
+use super::driver::error::{ProvideErrorMetadata, SdkError};
 use rune::alloc::fmt::TryWrite;
 use rune::runtime::{VmError, VmResult};
 use rune::{vm_write, Any};
@@ -68,14 +68,14 @@ impl From<rune::runtime::AccessError> for AlternatorError {
     }
 }
 
-impl From<aws_sdk_dynamodb::error::BuildError> for AlternatorError {
-    fn from(error: aws_sdk_dynamodb::error::BuildError) -> Self {
+impl From<super::driver::error::BuildError> for AlternatorError {
+    fn from(error: super::driver::error::BuildError) -> Self {
         AlternatorError::new(AlternatorErrorKind::SdkError(error.to_string()))
     }
 }
 
-impl From<aws_sdk_dynamodb::waiters::table_exists::WaitUntilTableExistsError> for AlternatorError {
-    fn from(error: aws_sdk_dynamodb::waiters::table_exists::WaitUntilTableExistsError) -> Self {
+impl From<super::driver::waiters::table_exists::WaitUntilTableExistsError> for AlternatorError {
+    fn from(error: super::driver::waiters::table_exists::WaitUntilTableExistsError) -> Self {
         AlternatorError::new(AlternatorErrorKind::SdkError(error.to_string()))
     }
 }

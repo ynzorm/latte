@@ -1,10 +1,10 @@
 use super::alternator_error::{AlternatorError, AlternatorErrorKind};
+use super::driver::Client;
 use crate::config::{RetryInterval, ValidationStrategy};
 use crate::error::LatteError;
 use crate::scripting::cluster_info::ClusterInfo;
 use crate::scripting::row_distribution::RowDistributionPreset;
 use crate::stats::session::SessionStats;
-use aws_sdk_dynamodb::Client;
 use rune::runtime::{Object, Shared};
 use rune::{Any, Value};
 use std::collections::HashMap;

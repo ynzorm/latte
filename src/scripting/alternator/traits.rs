@@ -1,12 +1,12 @@
 use super::alternator_error::AlternatorError;
-use super::types::alternator_map_to_rune_object;
-use aws_sdk_dynamodb::error::{ProvideErrorMetadata, SdkError};
-use aws_sdk_dynamodb::operation::{
+use super::driver::error::{ProvideErrorMetadata, SdkError};
+use super::driver::operation::{
     create_table::CreateTableOutput, delete_item::DeleteItemOutput,
     delete_table::DeleteTableOutput, get_item::GetItemOutput, put_item::PutItemOutput,
     query::QueryOutput, scan::ScanOutput, update_item::UpdateItemOutput,
 };
-use aws_sdk_dynamodb::types::AttributeValue;
+use super::driver::types::AttributeValue;
+use super::types::alternator_map_to_rune_object;
 use rune::Value;
 use std::collections::HashMap;
 use std::future::Future;
@@ -133,18 +133,18 @@ macro_rules! impl_alternator_request_no_pagination {
 }
 
 impl_alternator_request_no_pagination!(
-    aws_sdk_dynamodb::operation::create_table::builders::CreateTableFluentBuilder,
-    aws_sdk_dynamodb::operation::delete_table::builders::DeleteTableFluentBuilder,
-    aws_sdk_dynamodb::operation::put_item::builders::PutItemFluentBuilder,
-    aws_sdk_dynamodb::operation::delete_item::builders::DeleteItemFluentBuilder,
-    aws_sdk_dynamodb::operation::get_item::builders::GetItemFluentBuilder,
-    aws_sdk_dynamodb::operation::update_item::builders::UpdateItemFluentBuilder
+    super::driver::operation::create_table::builders::CreateTableFluentBuilder,
+    super::driver::operation::delete_table::builders::DeleteTableFluentBuilder,
+    super::driver::operation::put_item::builders::PutItemFluentBuilder,
+    super::driver::operation::delete_item::builders::DeleteItemFluentBuilder,
+    super::driver::operation::get_item::builders::GetItemFluentBuilder,
+    super::driver::operation::update_item::builders::UpdateItemFluentBuilder
 );
 
-impl_send_request!(aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder);
-impl_send_request!(aws_sdk_dynamodb::operation::scan::builders::ScanFluentBuilder);
+impl_send_request!(super::driver::operation::query::builders::QueryFluentBuilder);
+impl_send_request!(super::driver::operation::scan::builders::ScanFluentBuilder);
 
-impl AlternatorRequest for aws_sdk_dynamodb::operation::query::builders::QueryFluentBuilder {
+impl AlternatorRequest for super::driver::operation::query::builders::QueryFluentBuilder {
     fn set_pagination(
         self,
         token: Option<HashMap<String, AttributeValue>>,
@@ -164,7 +164,7 @@ impl AlternatorRequest for aws_sdk_dynamodb::operation::query::builders::QueryFl
     }
 }
 
-impl AlternatorRequest for aws_sdk_dynamodb::operation::scan::builders::ScanFluentBuilder {
+impl AlternatorRequest for super::driver::operation::scan::builders::ScanFluentBuilder {
     fn set_pagination(
         self,
         token: Option<HashMap<String, AttributeValue>>,

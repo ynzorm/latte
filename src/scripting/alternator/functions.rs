@@ -5,11 +5,9 @@ use crate::scripting::retry_error::handle_retry_error;
 
 use super::alternator_error::{AlternatorError, AlternatorErrorKind};
 use super::context::Context;
+use super::driver::client::Waiters;
+use super::driver::types::{AttributeDefinition, KeySchemaElement, KeyType, ScalarAttributeType};
 use super::types::rune_object_to_alternator_map;
-use aws_sdk_dynamodb::client::Waiters;
-use aws_sdk_dynamodb::types::{
-    AttributeDefinition, KeySchemaElement, KeyType, ScalarAttributeType,
-};
 use rune::runtime::{Object, Ref, Shared};
 use rune::{ToValue, Value};
 use std::cmp::min;
@@ -75,7 +73,7 @@ async fn handle_request(
     ctx: &Context,
     builder: impl AlternatorRequest,
 ) -> Result<Vec<Value>, AlternatorError> {
-    let mut token: Option<HashMap<String, aws_sdk_dynamodb::types::AttributeValue>> = None;
+    let mut token: Option<HashMap<String, super::driver::types::AttributeValue>> = None;
     let mut current_attempt_num = 0;
     let mut all_pages_duration = Duration::ZERO;
     let mut all_items = Vec::new();
@@ -219,7 +217,7 @@ pub async fn create_table(
     let mut builder = client
         .create_table()
         .table_name(table_name.deref())
-        .billing_mode(aws_sdk_dynamodb::types::BillingMode::PayPerRequest);
+        .billing_mode(super::driver::types::BillingMode::PayPerRequest);
 
     builder = builder.key_schema(
         KeySchemaElement::builder()

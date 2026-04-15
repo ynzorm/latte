@@ -18,6 +18,11 @@ name = "latte-alternator"
 path = "src/main.rs"
 required-features = ["alternator"]
 
+[[bin]]
+name = "latte-alternator-new"
+path = "src/main.rs"
+required-features = ["alternator-new"]
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [dependencies]
 anyhow = "1.0"
@@ -70,6 +75,7 @@ uuid = { version = "1.1", features = ["v4"] }
 walkdir = "2"
 aws-sdk-dynamodb = { version = "1.100.0", optional = true }
 aws-config = { version = "1.8.11", optional = true }
+alternator-driver = { path = "../alternator-rust-driver", optional = true }
 
 [build-dependencies]
 reqwest = { version = "0.11", features = ["json", "blocking"] }
@@ -89,6 +95,7 @@ tokio = { version = "=1.44.2", features = ["rt", "test-util", "macros"] }
 default = ["cql"]
 cql = ["scylla"]
 alternator = ["aws-config", "aws-sdk-dynamodb"]
+alternator-new = ["alternator-driver", "aws-config"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
