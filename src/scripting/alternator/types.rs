@@ -1,5 +1,5 @@
 use super::alternator_error::{AlternatorError, AlternatorErrorKind};
-use aws_sdk_dynamodb::types::AttributeValue;
+use super::driver::types::AttributeValue;
 use rune::alloc::String as RuneString;
 use rune::runtime::{Bytes, Object};
 use rune::{ToValue, Value};
