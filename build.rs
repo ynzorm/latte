@@ -10,7 +10,7 @@ const UNKNOWN: &str = "unknown";
 
 #[cfg(feature = "cql")]
 const DRIVER_PKG_NAME: &str = "scylla";
-#[cfg(feature = "alternator")]
+#[cfg(all(feature = "alternator", not(feature = "alternator-new")))]
 const DRIVER_PKG_NAME: &str = "aws-sdk-dynamodb";
 #[cfg(feature = "alternator-new")]
 const DRIVER_PKG_NAME: &str = "alternator-driver";
@@ -201,8 +201,6 @@ fn validate_features() {
         any(feature = "alternator", feature = "alternator-new")
     ))]
     compile_error!("Features \"cql\" and \"alternator\" are mutually exclusive; enable only one.");
-    #[cfg(all(feature = "alternator", feature = "alternator-new"))]
-    compile_error!("Choose a single alternator driver version.");
     #[cfg(all(
         not(feature = "cql"),
         not(feature = "alternator"),

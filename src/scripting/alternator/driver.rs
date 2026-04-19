@@ -1,4 +1,3 @@
-#[cfg(feature = "alternator")]
 pub use aws_sdk_dynamodb::*;
 
 #[cfg(feature = "alternator-new")]

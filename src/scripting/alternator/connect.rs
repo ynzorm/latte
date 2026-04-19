@@ -2,6 +2,9 @@ use super::alternator_error::{AlternatorError, AlternatorErrorKind};
 use super::context::Context;
 use super::driver::config::{Credentials, Region};
 use super::driver::error::DisplayErrorContext;
+#[cfg(feature = "alternator-new")]
+use super::driver::AlternatorClient as Client;
+#[cfg(not(feature = "alternator-new"))]
 use super::driver::Client;
 use crate::config::ConnectionConf;
 use aws_config::retry::RetryConfig;

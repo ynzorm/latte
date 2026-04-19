@@ -1,4 +1,7 @@
 use super::alternator_error::{AlternatorError, AlternatorErrorKind};
+#[cfg(feature = "alternator-new")]
+use super::driver::AlternatorClient as Client;
+#[cfg(not(feature = "alternator-new"))]
 use super::driver::Client;
 use crate::config::{RetryInterval, ValidationStrategy};
 use crate::error::LatteError;

@@ -95,7 +95,7 @@ tokio = { version = "=1.44.2", features = ["rt", "test-util", "macros"] }
 default = ["cql"]
 cql = ["scylla"]
 alternator = ["aws-config", "aws-sdk-dynamodb"]
-alternator-new = ["alternator-driver", "aws-config"]
+alternator-new = ["alternator-driver", "alternator"]
 
 [lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [

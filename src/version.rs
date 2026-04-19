@@ -1,6 +1,6 @@
 #[cfg(feature = "cql")]
 const DRIVER_PKG_NAME: &str = "scylla";
-#[cfg(feature = "alternator")]
+#[cfg(all(feature = "alternator", not(feature = "alternator-new")))]
 const DRIVER_PKG_NAME: &str = "aws-sdk-dynamodb";
 #[cfg(feature = "alternator-new")]
 const DRIVER_PKG_NAME: &str = "alternator-driver";
