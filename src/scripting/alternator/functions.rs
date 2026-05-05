@@ -824,7 +824,7 @@ pub async fn scan(
 
 /// Marks a list of items as an Alternator string set.
 #[rune::function]
-pub fn sset(items: Vec<Value>) -> VmResult<Value> {
+pub fn string_set(items: Vec<Value>) -> VmResult<Value> {
     let mut map = HashMap::new();
     let items_val = rune::vm_try!(items.to_value());
     map.insert(SSET_KEY.to_string(), items_val);
@@ -833,7 +833,7 @@ pub fn sset(items: Vec<Value>) -> VmResult<Value> {
 
 /// Marks a list of items as an Alternator number set.
 #[rune::function]
-pub fn nset(items: Vec<Value>) -> VmResult<Value> {
+pub fn number_set(items: Vec<Value>) -> VmResult<Value> {
     let mut map = HashMap::new();
     let items_val = rune::vm_try!(items.to_value());
     map.insert(NSET_KEY.to_string(), items_val);
@@ -842,7 +842,7 @@ pub fn nset(items: Vec<Value>) -> VmResult<Value> {
 
 /// Marks a list of items as an Alternator binary set.
 #[rune::function]
-pub fn bset(items: Vec<Value>) -> VmResult<Value> {
+pub fn binary_set(items: Vec<Value>) -> VmResult<Value> {
     let mut map = HashMap::new();
     let items_val = rune::vm_try!(items.to_value());
     map.insert(BSET_KEY.to_string(), items_val);

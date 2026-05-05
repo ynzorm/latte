@@ -33,9 +33,9 @@ pub async fn run(db, i) {
         test_bytes: b"binary data",
         
         // Sets (AttributeValue::Ss, AttributeValue::Ns, AttributeValue::Bs)
-        test_string_set: sset(["a", "b", "c"]),
-        test_number_set: nset([1, 2, 3]),
-        test_bytes_set: bset([b"bar", b"foo"]),
+        test_string_set: string_set(["a", "b", "c"]),
+        test_number_set: number_set([1, 2, 3]),
+        test_bytes_set: binary_set([b"bar", b"foo"]),
         manual_string_set: #{
             __sset: ["x", "y", "z"]
         },
@@ -96,9 +96,9 @@ pub async fn run(db, i) {
     result["test_number_set"]["__nset"].sort();
     result["test_bytes_set"]["__bset"].sort();
     result["manual_string_set"]["__sset"].sort();
-    assert!(result["test_string_set"] == sset(["a", "b", "c"]));
-    assert!(result["test_number_set"] == nset([1, 2, 3]));
-    assert!(result["test_bytes_set"] == bset([b"bar", b"foo"]));
+    assert!(result["test_string_set"] == string_set(["a", "b", "c"]));
+    assert!(result["test_number_set"] == number_set([1, 2, 3]));
+    assert!(result["test_bytes_set"] == binary_set([b"bar", b"foo"]));
     assert!(result["manual_string_set"] == #{
         __sset: ["x", "y", "z"]
     });
