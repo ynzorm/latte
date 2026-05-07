@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Parser, Debug, Default, Serialize, Deserialize)]
 pub struct DbConnectionConf {
     /// Use AWS credentials and region from the environment.
-    /// If this flag is set, access key ID, secret access key, and region args will be ignored.
-    #[clap(long("aws-credentials"))]
+    /// Mutually exclusive with `access-key-id`, `secret-access-key` and `region`.
+    #[clap(long("aws-credentials"), conflicts_with_all = &["access_key_id", "secret_access_key", "region"])]
     pub aws_credentials: bool,
 
     /// Access key ID.

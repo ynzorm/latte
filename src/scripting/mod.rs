@@ -116,9 +116,9 @@ fn try_install(
     let mut fs_module = init_fs_module()?;
     let iter_module = init_iter_module(&mut fs_module)?;
 
-    latte_module.function_meta(functions::sset)?;
-    latte_module.function_meta(functions::nset)?;
-    latte_module.function_meta(functions::bset)?;
+    latte_module.function_meta(functions::string_set)?;
+    latte_module.function_meta(functions::number_set)?;
+    latte_module.function_meta(functions::binary_set)?;
 
     rune_ctx.install(&context_module)?;
     rune_ctx.install(&err_module)?;

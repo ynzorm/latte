@@ -13,27 +13,27 @@ pub async fn schema(db) {
 
 pub async fn run(db, i) {
     let batch_size = 5;
-    let base_id = "user_" + i.to_string() + "_";
+    let base_id = `user_${i}_`;
     
     let write_requests = [];
     for j in 0..batch_size {
         write_requests.push(#{
             type: "put",
             item: #{
-                pk: base_id + j.to_string(),
-                data: "batch_item_" + j.to_string()
+                pk: `${base_id}${j}`,
+                data: `batch_item_${j}`
             }
         });
     }
     
     // Manual pagination loop for batch writes
     let current_writes = write_requests;
-    while current_writes.len() > 0 {
+    loop {
         let res = db.batch_write_item(TABLE, current_writes, #{ get_unprocessed: true }).await?;
         if let Some(unprocessed) = res.get("unprocessed_items") {
             current_writes = unprocessed;
         } else {
-            current_writes = []; // All items processed
+            break; // All items processed
         }
     }
 }

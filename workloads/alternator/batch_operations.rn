@@ -13,15 +13,15 @@ pub async fn schema(db) {
 
 pub async fn run(db, i) {
     let batch_size = 5;
-    let base_id = "user_" + i.to_string() + "_";
+    let base_id = `user_${i}_`;
     
     let write_requests = [];
     for j in 0..batch_size {
         write_requests.push(#{
             type: "put",
             item: #{
-                pk: base_id + j.to_string(),
-                data: "batch_item_" + j.to_string()
+                pk: `${base_id}${j}`,
+                data: `batch_item_${j}`
             }
         });
     }
@@ -31,7 +31,7 @@ pub async fn run(db, i) {
     let keys = [];
     for j in 0..batch_size {
         keys.push(#{
-            pk: base_id + j.to_string(),
+            pk: `${base_id}${j}`,
         });
     }
     
@@ -51,7 +51,7 @@ pub async fn run(db, i) {
         delete_requests.push(#{
             type: "delete",
             key: #{
-                pk: base_id + j.to_string(),
+                pk: `${base_id}${j}`,
             }
         });
     }
