@@ -2,9 +2,17 @@ name: Integration Tests
 
 on:
   push:
-    branches: [main]
+    branches:
+    - main
+    - develop
+    - 'backport*'
+    - 'backport*/**'
   pull_request:
-    branches: [main]
+    branches:
+    - main
+    - develop
+    - 'backport*'
+    - 'backport*/**'
   workflow_dispatch:
 
 permissions:

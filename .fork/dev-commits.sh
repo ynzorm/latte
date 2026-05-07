@@ -302,6 +302,11 @@ case "$mode" in
         #         → cherry-pick only the fixups that haven't been applied yet;
         #           autosquash will find the orig by subject and squash them in.
         if [[ -n "${covered[$orig_sha]+_}" ]]; then
+          # If a squashed commit with trailer also exists, all fixups were already
+          # absorbed by a previous autosquash run → the whole unit is done.
+          if [[ -n "${trailer_covered[$orig_sha]+_}" ]]; then
+            continue
+          fi
           uncovered_fixups=""
           for _f in $fixups_str; do
             [[ -z "${covered[$_f]+_}" ]] && uncovered_fixups+=" $_f"
