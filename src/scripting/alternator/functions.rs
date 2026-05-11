@@ -30,6 +30,22 @@ fn bad_input<T>(msg: impl Into<String>) -> Result<T, AlternatorError> {
     )))
 }
 
+fn check_invalid_params(
+    params: &Object,
+    function_name: &str,
+    allowed_fields: &[&str],
+) -> Result<(), AlternatorError> {
+    for field in params.keys() {
+        if !allowed_fields.contains(&field.as_str()) {
+            return bad_input(format!(
+                "Invalid parameter for function {}: {}. Allowed parameters: {:?}",
+                function_name, field, allowed_fields
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Gets the name and type of a primary or sort key from a object.
 fn extract_key_definition(
     object: &Object,
@@ -298,6 +314,10 @@ pub async fn create_table(
 ) -> Result<(), AlternatorError> {
     let client = ctx.get_client()?;
 
+    if let Ok(o) = params.borrow_ref::<Object>() {
+        check_invalid_params(o.deref(), "create_table", &["primary_key", "sort_key"])?;
+    }
+
     // Extract primary key definition
     let (pk_name, pk_type) = if let Ok(s) = params.borrow_ref::<rune::alloc::String>() {
         (s.as_str().to_string(), ScalarAttributeType::S)
@@ -482,6 +502,7 @@ pub async fn get(
         .set_key(Some(rune_object_to_alternator_map(&key)?));
 
     if let Ok(opts) = options.borrow_ref::<Object>() {
+        check_invalid_params(opts.deref(), "get", &["consistent_read", "with_result"])?;
         if let Some(b) = opts.get("consistent_read").and_then(|v| v.as_bool().ok()) {
             builder = builder.consistent_read(b);
         }
@@ -540,7 +561,11 @@ pub async fn update(
                 builder.set_expression_attribute_values(Some(rune_object_to_alternator_map(&obj)?));
         }
     }
-
+    check_invalid_params(
+        &params,
+        "update",
+        &["update", "attribute_names", "attribute_values"],
+    )?;
     handle_request(&ctx, builder).await?;
 
     Ok(())
@@ -619,7 +644,13 @@ pub async fn batch_get_item(
     let builder = client
         .batch_get_item()
         .set_request_items(Some(request_items));
-
+    if let Ok(opts) = options.borrow_ref::<Object>() {
+        check_invalid_params(
+            opts.deref(),
+            "batch_get_item",
+            &["consistent_read", "with_result", "get_unprocessed"],
+        )?;
+    }
     let (result_items, token) =
         handle_request_with_pagination(&ctx, builder, !get_unprocessed).await?;
 
@@ -733,7 +764,9 @@ pub async fn batch_write_item(
     let builder = client
         .batch_write_item()
         .set_request_items(Some(request_items));
-
+    if let Ok(opts) = options.borrow_ref::<Object>() {
+        check_invalid_params(opts.deref(), "batch_write_item", &["get_unprocessed"])?;
+    }
     let (result_items, token) =
         handle_request_with_pagination(&ctx, builder, !get_unprocessed).await?;
 
@@ -822,7 +855,20 @@ pub async fn query(
     } else {
         None
     };
-
+    check_invalid_params(
+        &params,
+        "query",
+        &[
+            "query",
+            "filter",
+            "attribute_names",
+            "attribute_values",
+            "consistent_read",
+            "limit",
+            "validation",
+            "with_result",
+        ],
+    )?;
     let result = handle_request_with_validation(&ctx, builder, validation, "Query").await?;
 
     if params.get("with_result").and_then(|v| v.as_bool().ok()) == Some(true) {
@@ -903,7 +949,19 @@ pub async fn scan(
     } else {
         None
     };
-
+    check_invalid_params(
+        &params,
+        "scan",
+        &[
+            "filter",
+            "attribute_names",
+            "attribute_values",
+            "consistent_read",
+            "limit",
+            "validation",
+            "with_result",
+        ],
+    )?;
     let result = handle_request_with_validation(&ctx, builder, validation, "Scan").await?;
 
     if params.get("with_result").and_then(|v| v.as_bool().ok()) == Some(true) {
