@@ -20,6 +20,7 @@ pub const ATTRIBUTE_VALUES_KEY: &str = "attribute_values";
 pub const LIMIT_KEY: &str = "limit";
 pub const VALIDATION_KEY: &str = "validation";
 pub const UPDATE_EXPRESSION_KEY: &str = "update";
+pub const PROJECTION_EXPRESSION_KEY: &str = "projection_expression";
 
 fn alternator_set_to_rune<I, T, F>(key: &str, iter: I, wrapper: F) -> Result<Value, AlternatorError>
 where
