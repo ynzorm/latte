@@ -431,18 +431,57 @@ pub async fn delete_table(ctx: Ref<Context>, table_name: Ref<str>) -> Result<(),
 /// # Arguments
 /// * `table_name` - The name of the table.
 /// * `item` - The item to insert. An object where keys are attribute names and values are attribute values.
+/// * `options` - Optional parameters object:
+///   - `condition_expression`: A condition that must be satisfied for the operation to succeed.
+///   - `attribute_names`: A map of attribute name placeholders (starting with #) to actual names.
+///   - `attribute_values`: A map of attribute value placeholders (starting with :) to values.
 #[rune::function(instance)]
 pub async fn put(
     ctx: Ref<Context>,
     table_name: Ref<str>,
     item: Ref<Object>,
+    options: Value,
 ) -> Result<(), AlternatorError> {
     let client = ctx.get_client()?;
 
-    let builder = client
+    let mut builder = client
         .put_item()
         .table_name(table_name.deref())
         .set_item(Some(rune_object_to_alternator_map(&item)?));
+
+    if let Ok(opts) = options.borrow_ref::<Object>() {
+        if let Some(condition_expression) = opts.get("condition_expression") {
+            if let Ok(ce_str) = condition_expression.borrow_ref::<rune::alloc::String>() {
+                builder = builder.condition_expression(ce_str.as_str().to_string());
+            }
+        }
+
+        if let Some(attr_names) = opts.get("attribute_names") {
+            if let Ok(attr_names_obj) = attr_names.borrow_ref::<Object>() {
+                builder = builder.set_expression_attribute_names(Some(extract_attribute_names(
+                    &attr_names_obj,
+                )?));
+            }
+        }
+
+        if let Some(attr_values) = opts.get("attribute_values") {
+            if let Ok(attr_values_obj) = attr_values.borrow_ref::<Object>() {
+                builder = builder.set_expression_attribute_values(Some(
+                    rune_object_to_alternator_map(&attr_values_obj)?,
+                ));
+            }
+        }
+
+        check_invalid_params(
+            opts.deref(),
+            "put",
+            &[
+                "condition_expression",
+                "attribute_names",
+                "attribute_values",
+            ],
+        )?;
+    }
 
     handle_request(&ctx, builder).await?;
 
@@ -455,18 +494,57 @@ pub async fn put(
 /// * `table_name` - The name of the table.
 /// * `key` - The primary key of the item to delete. An object containing the partition key
 ///   (and sort key if the table has one).
+/// * `options` - Optional parameters object:
+///   - `condition_expression`: A condition that must be satisfied for the operation to succeed.
+///   - `attribute_names`: A map of attribute name placeholders (starting with #) to actual names.
+///   - `attribute_values`: A map of attribute value placeholders (starting with :) to values.
 #[rune::function(instance)]
 pub async fn delete(
     ctx: Ref<Context>,
     table_name: Ref<str>,
     key: Ref<Object>,
+    options: Value,
 ) -> Result<(), AlternatorError> {
     let client = ctx.get_client()?;
 
-    let builder = client
+    let mut builder = client
         .delete_item()
         .table_name(table_name.deref())
         .set_key(Some(rune_object_to_alternator_map(&key)?));
+
+    if let Ok(opts) = options.borrow_ref::<Object>() {
+        if let Some(condition_expression) = opts.get("condition_expression") {
+            if let Ok(ce_str) = condition_expression.borrow_ref::<rune::alloc::String>() {
+                builder = builder.condition_expression(ce_str.as_str().to_string());
+            }
+        }
+
+        if let Some(attr_names) = opts.get("attribute_names") {
+            if let Ok(attr_names_obj) = attr_names.borrow_ref::<Object>() {
+                builder = builder.set_expression_attribute_names(Some(extract_attribute_names(
+                    &attr_names_obj,
+                )?));
+            }
+        }
+
+        if let Some(attr_values) = opts.get("attribute_values") {
+            if let Ok(attr_values_obj) = attr_values.borrow_ref::<Object>() {
+                builder = builder.set_expression_attribute_values(Some(
+                    rune_object_to_alternator_map(&attr_values_obj)?,
+                ));
+            }
+        }
+
+        check_invalid_params(
+            opts.deref(),
+            "delete",
+            &[
+                "condition_expression",
+                "attribute_names",
+                "attribute_values",
+            ],
+        )?;
+    }
 
     handle_request(&ctx, builder).await?;
 
@@ -527,6 +605,7 @@ pub async fn get(
 ///   (and sort key if the table has one).
 /// * `params` - Parameters for the update operation. An object containing:
 ///   - `update`: The update expression string.
+///   - `condition_expression`: A condition that must be satisfied for the operation to succeed.
 ///   - `attribute_names`: A map of attribute name placeholders (starting with #) to actual names.
 ///   - `attribute_values`: A map of attribute value placeholders (starting with :) to values.
 #[rune::function(instance)]
@@ -554,6 +633,11 @@ pub async fn update(
             builder = builder.set_expression_attribute_names(Some(extract_attribute_names(&obj)?));
         }
     }
+    if let Some(v) = params.get("condition_expression") {
+        if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
+            builder = builder.condition_expression(s.as_str().to_string());
+        }
+    }
 
     if let Some(v) = params.get("attribute_values") {
         if let Ok(obj) = v.borrow_ref::<Object>() {
@@ -564,7 +648,12 @@ pub async fn update(
     check_invalid_params(
         &params,
         "update",
-        &["update", "attribute_names", "attribute_values"],
+        &[
+            "update",
+            "condition_expression",
+            "attribute_names",
+            "attribute_values",
+        ],
     )?;
     handle_request(&ctx, builder).await?;
 
