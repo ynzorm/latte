@@ -2,10 +2,7 @@ use super::alternator_error::{AlternatorError, AlternatorErrorKind};
 use super::context::Context;
 use super::driver::config::{Credentials, Region};
 use super::driver::error::DisplayErrorContext;
-#[cfg(feature = "alternator-new")]
-use super::driver::AlternatorClient as Client;
-#[cfg(not(feature = "alternator-new"))]
-use super::driver::Client;
+use super::driver::new_client;
 use crate::config::ConnectionConf;
 use aws_config::retry::RetryConfig;
 use aws_config::BehaviorVersion;
@@ -40,7 +37,7 @@ pub async fn connect(conf: &ConnectionConf) -> Result<Context, AlternatorError> 
 
     let config = config_loader.load().await;
 
-    let client = Client::new(&config);
+    let client = new_client(&config, conf);
 
     // Validate connection by making a test request
     client.list_tables().limit(1).send().await.map_err(|e| {

@@ -206,6 +206,12 @@ pub struct ConnectionConf {
     #[clap(flatten)]
     #[serde(flatten)]
     pub db: db_config::DbConnectionConf,
+
+    /// Alternator-driver tuning (request compression and header handling).
+    #[cfg(feature = "alternator-new")]
+    #[clap(flatten)]
+    #[serde(flatten)]
+    pub alternator_new: db_config::AlternatorNewConnectionOpts,
 }
 
 #[derive(Clone, Copy, Default, Debug, Eq, PartialEq, Serialize, Deserialize, ValueEnum)]
@@ -830,6 +836,70 @@ mod tests {
         #[test]
         fn empty_string_returns_none() {
             assert!(RetryInterval::new("").is_none());
+        }
+    }
+
+    #[cfg(feature = "alternator-new")]
+    mod alternator_new_connection_opts_tests {
+        use super::{db_config::AlternatorRequestCompressionMode, SchemaCommand};
+        use clap::Parser;
+
+        fn parse_schema(args: &[&str]) -> SchemaCommand {
+            SchemaCommand::try_parse_from(std::iter::once("latte").chain(args.iter().copied()))
+                .unwrap()
+        }
+
+        #[test]
+        fn default_request_compression_and_whitelist() {
+            let c = parse_schema(&["w.rn", "http://h:1"]);
+            assert_eq!(
+                c.connection.alternator_new.request_compression,
+                AlternatorRequestCompressionMode::DriverDefault
+            );
+            assert!(c.connection.alternator_new.optimize_headers.is_none());
+            assert_eq!(c.connection.alternator_new.compression_threshold, 1024);
+            assert!(c.connection.alternator_new.compression_level.is_none());
+        }
+
+        #[test]
+        fn parse_compression_flags() {
+            let c = parse_schema(&[
+                "w.rn",
+                "http://h:1",
+                "--request-compression",
+                "zlib",
+                "--optimize-headers",
+                "false",
+                "--compression-threshold",
+                "2048",
+                "--compression-level",
+                "7",
+            ]);
+            assert_eq!(
+                c.connection.alternator_new.request_compression,
+                AlternatorRequestCompressionMode::Zlib
+            );
+            assert_eq!(c.connection.alternator_new.optimize_headers, Some(false));
+            assert_eq!(c.connection.alternator_new.compression_threshold, 2048);
+            assert_eq!(c.connection.alternator_new.compression_level, Some(7));
+        }
+    }
+
+    #[cfg(feature = "alternator-new")]
+    mod parse_compression_level_tests {
+        use super::super::db_config::parse_compression_level;
+
+        #[test]
+        fn accepts_levels_one_through_nine() {
+            for n in 1u8..=9u8 {
+                assert_eq!(parse_compression_level(&n.to_string()).unwrap(), n);
+            }
+        }
+
+        #[test]
+        fn rejects_out_of_range() {
+            assert!(parse_compression_level("0").is_err());
+            assert!(parse_compression_level("10").is_err());
         }
     }
 }
