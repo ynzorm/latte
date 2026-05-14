@@ -29,6 +29,7 @@ jobs:
           cache: true
       - run: cargo check --all --all-targets
       - run: cargo check --all --all-targets --no-default-features --features alternator
+      - run: cargo check --all --all-targets --no-default-features --features alternator-new
 
   test:
     name: Test
@@ -44,6 +45,7 @@ jobs:
           crate: cargo-nextest
       - run: cargo nextest run
       - run: cargo nextest run --no-default-features --features alternator
+      - run: cargo nextest run --no-default-features --features alternator-new
 
   fmt:
     name: Format
@@ -69,3 +71,4 @@ jobs:
       - run: cargo clippy -- -D warnings
       - run: RUSTFLAGS="--cfg tokio_unstable --cfg fetch_extended_version_info" cargo clippy -- -D warnings
       - run: cargo clippy --no-default-features --features alternator -- -D warnings
+      - run: cargo clippy --no-default-features --features alternator-new -- -D warnings
