@@ -32,16 +32,32 @@ docker-build:
 
 .PHONY: check-alternator
 check-alternator:
-	cargo check --all-targets --no-default-features --features alternator
+	cargo check --all-targets --no-default-features --features alternator --bin latte-alternator
 
 .PHONY: clippy-alternator
 clippy-alternator:
-	RUSTFLAGS="-Dwarnings --cfg tokio_unstable" cargo clippy --all-targets --no-default-features --features alternator
+	RUSTFLAGS="-Dwarnings --cfg tokio_unstable" cargo clippy --all-targets --no-default-features --features alternator --bin latte-alternator
 
 .PHONY: test-alternator
 test-alternator:
-	cargo test --no-default-features --features alternator
+	cargo test --no-default-features --features alternator --bin latte-alternator
 
 .PHONY: build-alternator
 build-alternator:
-	cargo build --examples --benches --no-default-features --features alternator
+	cargo build --examples --benches --no-default-features --features alternator --bin latte-alternator
+
+.PHONY: check-alternator-new
+check-alternator-new:
+	cargo check --all-targets --no-default-features --features alternator-new --bin latte-alternator-new
+
+.PHONY: clippy-alternator-new
+clippy-alternator-new:
+	RUSTFLAGS="-Dwarnings --cfg tokio_unstable" cargo clippy --all-targets --no-default-features --features alternator-new --bin latte-alternator-new
+
+.PHONY: test-alternator-new
+test-alternator-new:
+	cargo test --no-default-features --features alternator-new --bin latte-alternator-new
+
+.PHONY: build-alternator-new
+build-alternator-new:
+	cargo build --examples --benches --no-default-features --features alternator-new --bin latte-alternator-new
