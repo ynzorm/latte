@@ -28,6 +28,22 @@ fn bad_input<T>(msg: impl Into<String>) -> Result<T, AlternatorError> {
     )))
 }
 
+fn check_invalid_params(
+    params: &Object,
+    function_name: &str,
+    allowed_fields: &[&str],
+) -> Result<(), AlternatorError> {
+    for field in params.keys() {
+        if !allowed_fields.contains(&field.as_str()) {
+            return bad_input(format!(
+                "Invalid parameter for function {}: {}. Allowed parameters: {:?}",
+                function_name, field, allowed_fields
+            ));
+        }
+    }
+    Ok(())
+}
+
 /// Gets the name and type of a primary or sort key from a object.
 fn extract_key_definition(
     object: &Shared<Object>,
@@ -294,6 +310,14 @@ pub async fn create_table(
 ) -> Result<(), AlternatorError> {
     let client = ctx.get_client()?;
 
+    if let Value::Object(o) = &params {
+        check_invalid_params(
+            o.borrow_ref()?.deref(),
+            "create_table",
+            &["primary_key", "sort_key"],
+        )?;
+    }
+
     // Extract primary key definition
     let (pk_name, pk_type) = match &params {
         Value::String(s) => (s.borrow_ref()?.to_string(), ScalarAttributeType::S),
@@ -452,6 +476,11 @@ pub async fn get(
         .set_key(Some(rune_object_to_alternator_map(key)?));
 
     if let Value::Object(opts) = &options {
+        check_invalid_params(
+            opts.borrow_ref()?.deref(),
+            "get",
+            &["consistent_read", "with_result"],
+        )?;
         if let Some(Value::Bool(consistent_read)) = opts.borrow_ref()?.get("consistent_read") {
             builder = builder.consistent_read(*consistent_read);
         }
@@ -508,7 +537,11 @@ pub async fn update(
             attr_values.clone().into_ref()?,
         )?));
     }
-
+    check_invalid_params(
+        &params,
+        "update",
+        &["update", "attribute_names", "attribute_values"],
+    )?;
     handle_request(&ctx, builder).await?;
 
     Ok(())
@@ -580,7 +613,13 @@ pub async fn batch_get_item(
     let builder = client
         .batch_get_item()
         .set_request_items(Some(request_items));
-
+    if let Value::Object(opts) = &options {
+        check_invalid_params(
+            opts.borrow_ref()?.deref(),
+            "batch_get_item",
+            &["consistent_read", "with_result", "get_unprocessed"],
+        )?;
+    }
     let (result_items, token) =
         handle_request_with_pagination(&ctx, builder, !get_unprocessed).await?;
 
@@ -681,7 +720,13 @@ pub async fn batch_write_item(
     let builder = client
         .batch_write_item()
         .set_request_items(Some(request_items));
-
+    if let Value::Object(opts) = &options {
+        check_invalid_params(
+            opts.borrow_ref()?.deref(),
+            "batch_write_item",
+            &["get_unprocessed"],
+        )?;
+    }
     let (result_items, token) =
         handle_request_with_pagination(&ctx, builder, !get_unprocessed).await?;
 
@@ -760,7 +805,20 @@ pub async fn query(
     } else {
         None
     };
-
+    check_invalid_params(
+        &params,
+        "query",
+        &[
+            "query",
+            "filter",
+            "attribute_names",
+            "attribute_values",
+            "consistent_read",
+            "limit",
+            "validation",
+            "with_result",
+        ],
+    )?;
     let result = handle_request_with_validation(&ctx, builder, validation, "Query").await?;
 
     if let Some(Value::Bool(with_result)) = params.get("with_result") {
@@ -818,7 +876,10 @@ pub async fn scan(
 
     if let Some(limit_val) = params.get("limit") {
         builder = builder.limit(match limit_val {
-            Value::Integer(i) => *i as i32,
+            Value::Integer(i) => match i32::try_from(*i) {
+                Ok(val) => val,
+                Err(_) => return bad_input("limit is out of range"),
+            },
             _ => return bad_input("limit must be an integer"),
         });
     }
@@ -831,7 +892,19 @@ pub async fn scan(
     } else {
         None
     };
-
+    check_invalid_params(
+        &params,
+        "scan",
+        &[
+            "filter",
+            "attribute_names",
+            "attribute_values",
+            "consistent_read",
+            "limit",
+            "validation",
+            "with_result",
+        ],
+    )?;
     let result = handle_request_with_validation(&ctx, builder, validation, "Scan").await?;
 
     if let Some(Value::Bool(with_result)) = params.get("with_result") {
