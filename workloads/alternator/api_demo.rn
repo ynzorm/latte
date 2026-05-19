@@ -30,7 +30,7 @@ pub async fn run(db, i) {
             num: 1234567890,
             bool: true
         }
-    }).await?;
+    }, ()).await?;
 
     // GET
     let key = #{
@@ -59,6 +59,19 @@ pub async fn run(db, i) {
         "attribute_values": #{
             ":new_name": "Other name",
             ":new_age": 21
+        }
+    }).await?;
+
+    // UPDATE Item with condition
+    db.update(TABLE, key, #{
+        update: "SET #n = :cond_name",
+        condition_expression: "age = :expected_age",
+        "attribute_names": #{
+            "#n": "name"
+        },
+        "attribute_values": #{
+            ":cond_name": "Conditional Name",
+            ":expected_age": 21
         }
     }).await?;
 
@@ -110,5 +123,5 @@ pub async fn run(db, i) {
     }).await?;
 
     // DELETE Item
-    db.delete(TABLE, key).await?;
+    db.delete(TABLE, key, ()).await?;
 }
