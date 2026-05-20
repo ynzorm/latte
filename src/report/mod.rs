@@ -529,6 +529,56 @@ impl Display for RunConfigCmp<'_> {
                     .map(|b| b.to_string())
                     .unwrap_or_else(|| "default".to_string())
             }),
+            #[cfg(feature = "alternator-new")]
+            self.line("Active interval", "", |conf| {
+                conf.connection
+                    .alternator_new
+                    .active_interval
+                    .map(|ms| format!("{} ms", ms))
+                    .unwrap_or_else(|| "default".to_string())
+            }),
+            #[cfg(feature = "alternator-new")]
+            self.line("Idle interval", "", |conf| {
+                conf.connection
+                    .alternator_new
+                    .idle_interval
+                    .map(|ms| format!("{} ms", ms))
+                    .unwrap_or_else(|| "default".to_string())
+            }),
+            #[cfg(feature = "alternator-new")]
+            self.line("Routing fallback", "", |conf| {
+                conf.connection
+                    .alternator_new
+                    .routing_fallback
+                    .map(|b| b.to_string())
+                    .unwrap_or_else(|| "default".to_string())
+            }),
+            #[cfg(feature = "alternator-new")]
+            self.line("Key route affinity", "", |conf| {
+                conf.connection
+                    .alternator_new
+                    .key_route_affinity
+                    .map(|a| format!("{:?}", a))
+                    .unwrap_or_else(|| "default".to_string())
+            }),
+            #[cfg(feature = "alternator-new")]
+            self.line("Key route affinity tables", "", |conf| {
+                if conf
+                    .connection
+                    .alternator_new
+                    .key_route_affinity_tables
+                    .is_empty()
+                {
+                    "none".to_string()
+                } else {
+                    conf.connection
+                        .alternator_new
+                        .key_route_affinity_tables
+                        .iter()
+                        .map(|(t, pk)| format!("{}={}", t, pk))
+                        .join(", ")
+                }
+            }),
             self.line("Tags", "", |conf| conf.tags.iter().join(", ")),
         ];
 

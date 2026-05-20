@@ -8,7 +8,12 @@ use aws_config::retry::RetryConfig;
 use aws_config::BehaviorVersion;
 
 pub async fn connect(conf: &ConnectionConf) -> Result<Context, AlternatorError> {
-    let address = conf.addresses.first().cloned().unwrap_or_default();
+    let first_addr = conf.addresses.first().cloned().unwrap_or_default();
+    let address = if first_addr.is_empty() || first_addr.contains("://") {
+        first_addr
+    } else {
+        format!("http://{}", first_addr)
+    };
 
     let mut config_loader = aws_config::defaults(BehaviorVersion::latest())
         .endpoint_url(&address)

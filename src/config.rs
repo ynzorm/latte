@@ -37,7 +37,7 @@ fn parse_f64(s: &str) -> Result<f64, String> {
 }
 
 /// Parse a single key-value pair
-fn parse_key_val<T, U>(s: &str) -> Result<(T, U), anyhow::Error>
+pub(crate) fn parse_key_val<T, U>(s: &str) -> Result<(T, U), anyhow::Error>
 where
     T: std::str::FromStr,
     T::Err: Error + Send + Sync + 'static,
@@ -849,7 +849,10 @@ mod tests {
 
     #[cfg(feature = "alternator-new")]
     mod alternator_new_connection_opts_tests {
-        use super::{db_config::AlternatorRequestCompressionMode, SchemaCommand};
+        use super::{
+            db_config::AlternatorKeyRouteAffinity, db_config::AlternatorRequestCompressionMode,
+            SchemaCommand,
+        };
         use clap::Parser;
 
         fn parse_schema(args: &[&str]) -> SchemaCommand {
@@ -867,6 +870,17 @@ mod tests {
             assert!(c.connection.alternator_new.optimize_headers.is_none());
             assert_eq!(c.connection.alternator_new.compression_threshold, 1024);
             assert!(c.connection.alternator_new.compression_level.is_none());
+            assert!(c.connection.alternator_new.active_interval.is_none());
+            assert!(c.connection.alternator_new.idle_interval.is_none());
+            assert!(c.connection.datacenter.is_none());
+            assert!(c.connection.rack.is_none());
+            assert!(c.connection.alternator_new.routing_fallback.is_none());
+            assert!(c.connection.alternator_new.key_route_affinity.is_none());
+            assert!(c
+                .connection
+                .alternator_new
+                .key_route_affinity_tables
+                .is_empty());
         }
 
         #[test]
@@ -890,6 +904,46 @@ mod tests {
             assert_eq!(c.connection.alternator_new.optimize_headers, Some(false));
             assert_eq!(c.connection.alternator_new.compression_threshold, 2048);
             assert_eq!(c.connection.alternator_new.compression_level, Some(7));
+        }
+
+        #[test]
+        fn parse_optimization_flags() {
+            let c = parse_schema(&[
+                "w.rn",
+                "http://h:1",
+                "--active-interval",
+                "500",
+                "--idle-interval",
+                "30000",
+                "--datacenter",
+                "us-east-1",
+                "--rack",
+                "rack1a",
+                "--routing-fallback",
+                "false",
+                "--key-route-affinity",
+                "any-write",
+                "--key-route-affinity-table",
+                "users=user_id",
+                "--key-route-affinity-table",
+                "orders=order_id",
+            ]);
+            assert_eq!(c.connection.alternator_new.active_interval, Some(500));
+            assert_eq!(c.connection.alternator_new.idle_interval, Some(30000));
+            assert_eq!(c.connection.datacenter, Some("us-east-1".to_string()));
+            assert_eq!(c.connection.rack, Some("rack1a".to_string()));
+            assert_eq!(c.connection.alternator_new.routing_fallback, Some(false));
+            assert_eq!(
+                c.connection.alternator_new.key_route_affinity,
+                Some(AlternatorKeyRouteAffinity::AnyWrite)
+            );
+            assert_eq!(
+                c.connection.alternator_new.key_route_affinity_tables,
+                vec![
+                    ("users".to_string(), "user_id".to_string()),
+                    ("orders".to_string(), "order_id".to_string())
+                ]
+            );
         }
     }
 
