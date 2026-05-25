@@ -625,6 +625,19 @@ pub async fn get(
                 return bad_input(format!("'{}' must be an object", ATTRIBUTE_NAMES_KEY));
             }
         }
+        if let Some(proj) = opts
+            .get("projection_expression")
+            .and_then(|v| v.borrow_ref::<rune::alloc::String>().ok())
+        {
+            builder = builder.projection_expression(proj.as_str().to_string());
+        }
+        if let Some(attr_names) = opts
+            .get("attribute_names")
+            .and_then(|v| v.borrow_ref::<Object>().ok())
+        {
+            builder =
+                builder.set_expression_attribute_names(Some(extract_attribute_names(&attr_names)?));
+        }
     }
 
     let result = handle_request(&ctx, builder).await?;
@@ -702,6 +715,11 @@ pub async fn update(
             return bad_input(format!("'{}' must be a string", CONDITION_EXPRESSION_KEY));
         }
     }
+    if let Some(v) = params.get("condition_expression") {
+        if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
+            builder = builder.condition_expression(s.as_str().to_string());
+        }
+    }
 
     if let Some(v) = params.get(ATTRIBUTE_VALUES_KEY) {
         if let Ok(obj) = v.borrow_ref::<Object>() {
@@ -711,7 +729,16 @@ pub async fn update(
             return bad_input(format!("'{}' must be an object", ATTRIBUTE_VALUES_KEY));
         }
     }
-
+    check_invalid_params(
+        &params,
+        "update",
+        &[
+            "update",
+            "condition_expression",
+            "attribute_names",
+            "attribute_values",
+        ],
+    )?;
     handle_request(&ctx, builder).await?;
 
     Ok(())
@@ -870,7 +897,13 @@ pub async fn batch_get_item(
     let builder = client
         .batch_get_item()
         .set_request_items(Some(request_items));
-
+    if let Ok(opts) = options.borrow_ref::<Object>() {
+        check_invalid_params(
+            opts.deref(),
+            "batch_get_item",
+            &["consistent_read", "with_result", "get_unprocessed"],
+        )?;
+    }
     let (result_items, token) =
         handle_request_with_pagination(&ctx, builder, !get_unprocessed).await?;
 
@@ -995,7 +1028,9 @@ pub async fn batch_write_item(
     let builder = client
         .batch_write_item()
         .set_request_items(Some(request_items));
-
+    if let Ok(opts) = options.borrow_ref::<Object>() {
+        check_invalid_params(opts.deref(), "batch_write_item", &["get_unprocessed"])?;
+    }
     let (result_items, token) =
         handle_request_with_pagination(&ctx, builder, !get_unprocessed).await?;
 
@@ -1122,7 +1157,21 @@ pub async fn query(
     } else {
         None
     };
-
+    check_invalid_params(
+        &params,
+        "query",
+        &[
+            "query",
+            "filter",
+            "projection_expression",
+            "attribute_names",
+            "attribute_values",
+            "consistent_read",
+            "limit",
+            "validation",
+            "with_result",
+        ],
+    )?;
     let result = handle_request_with_validation(&ctx, builder, validation, "Query").await?;
 
     if let Some(v) = params.get(WITH_RESULT_KEY) {
@@ -1244,7 +1293,20 @@ pub async fn scan(
     } else {
         None
     };
-
+    check_invalid_params(
+        &params,
+        "scan",
+        &[
+            "filter",
+            "projection_expression",
+            "attribute_names",
+            "attribute_values",
+            "consistent_read",
+            "limit",
+            "validation",
+            "with_result",
+        ],
+    )?;
     let result = handle_request_with_validation(&ctx, builder, validation, "Scan").await?;
 
     if let Some(v) = params.get(WITH_RESULT_KEY) {
