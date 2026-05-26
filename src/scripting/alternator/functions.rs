@@ -572,7 +572,12 @@ pub async fn get(
         check_invalid_params(
             opts.deref(),
             "get",
-            &[CONSISTENT_READ_KEY, ATTRIBUTE_NAMES_KEY, WITH_RESULT_KEY],
+            &[
+                CONSISTENT_READ_KEY,
+                PROJECTION_EXPRESSION_KEY,
+                ATTRIBUTE_NAMES_KEY,
+                WITH_RESULT_KEY,
+            ],
         )?;
 
         if let Some(v) = opts.get(CONSISTENT_READ_KEY) {
@@ -581,7 +586,13 @@ pub async fn get(
                 _ => return bad_input(format!("'{}' must be a boolean", CONSISTENT_READ_KEY)),
             });
         }
-
+        if let Some(proj) = opts.get(PROJECTION_EXPRESSION_KEY) {
+            if let Ok(s) = proj.borrow_ref::<rune::alloc::String>() {
+                builder = builder.projection_expression(s.as_str().to_string());
+            } else {
+                return bad_input(format!("'{}' must be a string", PROJECTION_EXPRESSION_KEY));
+            }
+        }
         if let Some(attr_names) = opts.get(ATTRIBUTE_NAMES_KEY) {
             if let Ok(obj) = attr_names.borrow_ref::<Object>() {
                 builder =
@@ -754,7 +765,7 @@ pub async fn batch_get_item(
                     check_invalid_params(
                         &obj_ref,
                         "batch_get_item request object",
-                        &["keys", "projection_expression", ATTRIBUTE_NAMES_KEY],
+                        &["keys", PROJECTION_EXPRESSION_KEY, ATTRIBUTE_NAMES_KEY],
                     )?;
 
                     let keys = if let Some(v) = obj_ref.get("keys") {
@@ -780,7 +791,10 @@ pub async fn batch_get_item(
                         if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
                             Some(s.as_str().to_string())
                         } else {
-                            return bad_input("projection_expression must be a string");
+                            return bad_input(format!(
+                                "'{}' must be a string",
+                                PROJECTION_EXPRESSION_KEY
+                            ));
                         }
                     } else {
                         None
@@ -1000,6 +1014,7 @@ pub async fn query(
         &[
             QUERY_EXPRESSION_KEY,
             FILTER_EXPRESSION_KEY,
+            PROJECTION_EXPRESSION_KEY,
             ATTRIBUTE_NAMES_KEY,
             ATTRIBUTE_VALUES_KEY,
             CONSISTENT_READ_KEY,
@@ -1022,6 +1037,14 @@ pub async fn query(
             builder = builder.filter_expression(s.as_str().to_string());
         } else {
             return bad_input(format!("'{}' must be a string", FILTER_EXPRESSION_KEY));
+        }
+    }
+
+    if let Some(proj) = params.get(PROJECTION_EXPRESSION_KEY) {
+        if let Ok(s) = proj.borrow_ref::<rune::alloc::String>() {
+            builder = builder.projection_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", PROJECTION_EXPRESSION_KEY));
         }
     }
 
@@ -1121,6 +1144,7 @@ pub async fn scan(
         "scan",
         &[
             FILTER_EXPRESSION_KEY,
+            PROJECTION_EXPRESSION_KEY,
             ATTRIBUTE_NAMES_KEY,
             ATTRIBUTE_VALUES_KEY,
             CONSISTENT_READ_KEY,
@@ -1135,6 +1159,14 @@ pub async fn scan(
             builder = builder.filter_expression(s.as_str().to_string());
         } else {
             return bad_input(format!("'{}' must be a string", FILTER_EXPRESSION_KEY));
+        }
+    }
+
+    if let Some(proj) = params.get(PROJECTION_EXPRESSION_KEY) {
+        if let Ok(s) = proj.borrow_ref::<rune::alloc::String>() {
+            builder = builder.projection_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", PROJECTION_EXPRESSION_KEY));
         }
     }
 
