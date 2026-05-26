@@ -452,9 +452,20 @@ pub async fn put(
         check_invalid_params(
             opts.deref(),
             "put",
-            &[ATTRIBUTE_NAMES_KEY, ATTRIBUTE_VALUES_KEY],
+            &[
+                CONDITION_EXPRESSION_KEY,
+                ATTRIBUTE_NAMES_KEY,
+                ATTRIBUTE_VALUES_KEY,
+            ],
         )?;
 
+        if let Some(condition_expression) = opts.get(CONDITION_EXPRESSION_KEY) {
+            if let Ok(ce_str) = condition_expression.borrow_ref::<rune::alloc::String>() {
+                builder = builder.condition_expression(ce_str.as_str().to_string());
+            } else {
+                return bad_input(format!("'{}' must be a string", CONDITION_EXPRESSION_KEY));
+            }
+        }
         if let Some(attr_names) = opts.get(ATTRIBUTE_NAMES_KEY) {
             if let Ok(attr_names_obj) = attr_names.borrow_ref::<Object>() {
                 builder = builder.set_expression_attribute_names(Some(extract_attribute_names(
@@ -509,9 +520,20 @@ pub async fn delete(
         check_invalid_params(
             opts.deref(),
             "delete",
-            &[ATTRIBUTE_NAMES_KEY, ATTRIBUTE_VALUES_KEY],
+            &[
+                CONDITION_EXPRESSION_KEY,
+                ATTRIBUTE_NAMES_KEY,
+                ATTRIBUTE_VALUES_KEY,
+            ],
         )?;
 
+        if let Some(condition_expression) = opts.get(CONDITION_EXPRESSION_KEY) {
+            if let Ok(ce_str) = condition_expression.borrow_ref::<rune::alloc::String>() {
+                builder = builder.condition_expression(ce_str.as_str().to_string());
+            } else {
+                return bad_input(format!("'{}' must be a string", CONDITION_EXPRESSION_KEY));
+            }
+        }
         if let Some(attr_names) = opts.get(ATTRIBUTE_NAMES_KEY) {
             if let Ok(attr_names_obj) = attr_names.borrow_ref::<Object>() {
                 builder = builder.set_expression_attribute_names(Some(extract_attribute_names(
@@ -650,6 +672,7 @@ pub async fn update(
         "update",
         &[
             UPDATE_EXPRESSION_KEY,
+            CONDITION_EXPRESSION_KEY,
             ATTRIBUTE_NAMES_KEY,
             ATTRIBUTE_VALUES_KEY,
         ],
@@ -668,6 +691,13 @@ pub async fn update(
             builder = builder.set_expression_attribute_names(Some(extract_attribute_names(&obj)?));
         } else {
             return bad_input(format!("'{}' must be an object", ATTRIBUTE_NAMES_KEY));
+        }
+    }
+    if let Some(v) = params.get(CONDITION_EXPRESSION_KEY) {
+        if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
+            builder = builder.condition_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", CONDITION_EXPRESSION_KEY));
         }
     }
 
