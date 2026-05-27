@@ -868,13 +868,6 @@ pub async fn batch_get_item(
     let builder = client
         .batch_get_item()
         .set_request_items(Some(request_items));
-    if let Ok(opts) = options.borrow_ref::<Object>() {
-        check_invalid_params(
-            opts.deref(),
-            "batch_get_item",
-            &["consistent_read", "with_result", "get_unprocessed"],
-        )?;
-    }
     let (result_items, token) =
         handle_request_with_pagination(&ctx, builder, !get_unprocessed).await?;
     format_batch_result(result_items, token, !get_unprocessed, with_result)
@@ -998,9 +991,6 @@ pub async fn batch_write_item(
     let builder = client
         .batch_write_item()
         .set_request_items(Some(request_items));
-    if let Ok(opts) = options.borrow_ref::<Object>() {
-        check_invalid_params(opts.deref(), "batch_write_item", &["get_unprocessed"])?;
-    }
     let (result_items, token) =
         handle_request_with_pagination(&ctx, builder, !get_unprocessed).await?;
 
