@@ -7,10 +7,7 @@ use crate::scripting::retry_error::handle_retry_error;
 
 use super::alternator_error::{AlternatorError, AlternatorErrorKind};
 use super::context::Context;
-use super::types::{
-    alternator_map_to_rune_object, hashmap_to_rune_object, rune_object_to_alternator_map,
-};
-use super::types::{BSET_KEY, NSET_KEY, SSET_KEY};
+use super::types::*;
 use aws_sdk_dynamodb::client::Waiters;
 use aws_sdk_dynamodb::types::{
     AttributeDefinition, DeleteRequest, KeySchemaElement, KeyType, KeysAndAttributes, PutRequest,
@@ -50,11 +47,13 @@ fn check_invalid_params(
 fn extract_key_definition(
     object: &Object,
 ) -> Result<(String, ScalarAttributeType), AlternatorError> {
+    check_invalid_params(object, "extract_key_definition", &["name", "type"])?;
+
     let key_name = if let Some(v) = object.get("name") {
         if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
             s.as_str().to_string()
         } else {
-            return bad_input("Key definition object must have a 'name' field");
+            return bad_input("'name' in key definition must be a string");
         }
     } else {
         return bad_input("Key definition object must have a 'name' field");
@@ -74,7 +73,7 @@ fn extract_key_definition(
                 }
             }
         } else {
-            return bad_input("Key definition object must have a 'type' field");
+            return bad_input("'type' in key definition must be a string");
         }
     } else {
         return bad_input("Key definition object must have a 'type' field");
@@ -315,14 +314,14 @@ pub async fn create_table(
     let client = ctx.get_client()?;
 
     if let Ok(o) = params.borrow_ref::<Object>() {
-        check_invalid_params(o.deref(), "create_table", &["primary_key", "sort_key"])?;
+        check_invalid_params(o.deref(), "create_table", &[PRIMARY_KEY_KEY, SORT_KEY_KEY])?;
     }
 
     // Extract primary key definition
     let (pk_name, pk_type) = if let Ok(s) = params.borrow_ref::<rune::alloc::String>() {
         (s.as_str().to_string(), ScalarAttributeType::S)
     } else if let Ok(o) = params.borrow_ref::<Object>() {
-        match o.get("primary_key") {
+        match o.get(PRIMARY_KEY_KEY) {
             Some(v) if v.borrow_ref::<rune::alloc::String>().is_ok() => (
                 v.borrow_ref::<rune::alloc::String>()
                     .unwrap()
@@ -334,10 +333,10 @@ pub async fn create_table(
                 if let Ok(pk_obj) = v.borrow_ref::<Object>() {
                     extract_key_definition(&pk_obj)?
                 } else {
-                    return bad_input("Invalid 'primary_key' object in params");
+                    return bad_input(format!("Invalid '{}' object in params", PRIMARY_KEY_KEY));
                 }
             }
-            _ => return bad_input("Invalid 'primary_key' object in params"),
+            _ => return bad_input(format!("Invalid '{}' object in params", PRIMARY_KEY_KEY)),
         }
     } else {
         return bad_input("Params must be a string or an object");
@@ -345,7 +344,7 @@ pub async fn create_table(
 
     // Extract sort key definition if present
     let sk = if let Ok(o) = params.borrow_ref::<Object>() {
-        match o.get("sort_key") {
+        match o.get(SORT_KEY_KEY) {
             Some(v) if v.borrow_ref::<rune::alloc::String>().is_ok() => Some((
                 v.borrow_ref::<rune::alloc::String>()
                     .unwrap()
@@ -357,7 +356,7 @@ pub async fn create_table(
                 if let Ok(sk_obj) = v.borrow_ref::<Object>() {
                     Some(extract_key_definition(&sk_obj)?)
                 } else {
-                    return bad_input("Invalid 'sort_key' object in params");
+                    return bad_input(format!("Invalid '{}' object in params", SORT_KEY_KEY));
                 }
             }
             None => None,
@@ -450,37 +449,42 @@ pub async fn put(
         .set_item(Some(rune_object_to_alternator_map(&item)?));
 
     if let Ok(opts) = options.borrow_ref::<Object>() {
-        if let Some(condition_expression) = opts.get("condition_expression") {
-            if let Ok(ce_str) = condition_expression.borrow_ref::<rune::alloc::String>() {
-                builder = builder.condition_expression(ce_str.as_str().to_string());
-            }
-        }
-
-        if let Some(attr_names) = opts.get("attribute_names") {
-            if let Ok(attr_names_obj) = attr_names.borrow_ref::<Object>() {
-                builder = builder.set_expression_attribute_names(Some(extract_attribute_names(
-                    &attr_names_obj,
-                )?));
-            }
-        }
-
-        if let Some(attr_values) = opts.get("attribute_values") {
-            if let Ok(attr_values_obj) = attr_values.borrow_ref::<Object>() {
-                builder = builder.set_expression_attribute_values(Some(
-                    rune_object_to_alternator_map(&attr_values_obj)?,
-                ));
-            }
-        }
-
         check_invalid_params(
             opts.deref(),
             "put",
             &[
-                "condition_expression",
-                "attribute_names",
-                "attribute_values",
+                CONDITION_EXPRESSION_KEY,
+                ATTRIBUTE_NAMES_KEY,
+                ATTRIBUTE_VALUES_KEY,
             ],
         )?;
+
+        if let Some(condition_expression) = opts.get(CONDITION_EXPRESSION_KEY) {
+            if let Ok(ce_str) = condition_expression.borrow_ref::<rune::alloc::String>() {
+                builder = builder.condition_expression(ce_str.as_str().to_string());
+            } else {
+                return bad_input(format!("'{}' must be a string", CONDITION_EXPRESSION_KEY));
+            }
+        }
+        if let Some(attr_names) = opts.get(ATTRIBUTE_NAMES_KEY) {
+            if let Ok(attr_names_obj) = attr_names.borrow_ref::<Object>() {
+                builder = builder.set_expression_attribute_names(Some(extract_attribute_names(
+                    &attr_names_obj,
+                )?));
+            } else {
+                return bad_input(format!("'{}' must be an object", ATTRIBUTE_NAMES_KEY));
+            }
+        }
+
+        if let Some(attr_values) = opts.get(ATTRIBUTE_VALUES_KEY) {
+            if let Ok(attr_values_obj) = attr_values.borrow_ref::<Object>() {
+                builder = builder.set_expression_attribute_values(Some(
+                    rune_object_to_alternator_map(&attr_values_obj)?,
+                ));
+            } else {
+                return bad_input(format!("'{}' must be an object", ATTRIBUTE_VALUES_KEY));
+            }
+        }
     }
 
     handle_request(&ctx, builder).await?;
@@ -513,37 +517,42 @@ pub async fn delete(
         .set_key(Some(rune_object_to_alternator_map(&key)?));
 
     if let Ok(opts) = options.borrow_ref::<Object>() {
-        if let Some(condition_expression) = opts.get("condition_expression") {
-            if let Ok(ce_str) = condition_expression.borrow_ref::<rune::alloc::String>() {
-                builder = builder.condition_expression(ce_str.as_str().to_string());
-            }
-        }
-
-        if let Some(attr_names) = opts.get("attribute_names") {
-            if let Ok(attr_names_obj) = attr_names.borrow_ref::<Object>() {
-                builder = builder.set_expression_attribute_names(Some(extract_attribute_names(
-                    &attr_names_obj,
-                )?));
-            }
-        }
-
-        if let Some(attr_values) = opts.get("attribute_values") {
-            if let Ok(attr_values_obj) = attr_values.borrow_ref::<Object>() {
-                builder = builder.set_expression_attribute_values(Some(
-                    rune_object_to_alternator_map(&attr_values_obj)?,
-                ));
-            }
-        }
-
         check_invalid_params(
             opts.deref(),
             "delete",
             &[
-                "condition_expression",
-                "attribute_names",
-                "attribute_values",
+                CONDITION_EXPRESSION_KEY,
+                ATTRIBUTE_NAMES_KEY,
+                ATTRIBUTE_VALUES_KEY,
             ],
         )?;
+
+        if let Some(condition_expression) = opts.get(CONDITION_EXPRESSION_KEY) {
+            if let Ok(ce_str) = condition_expression.borrow_ref::<rune::alloc::String>() {
+                builder = builder.condition_expression(ce_str.as_str().to_string());
+            } else {
+                return bad_input(format!("'{}' must be a string", CONDITION_EXPRESSION_KEY));
+            }
+        }
+        if let Some(attr_names) = opts.get(ATTRIBUTE_NAMES_KEY) {
+            if let Ok(attr_names_obj) = attr_names.borrow_ref::<Object>() {
+                builder = builder.set_expression_attribute_names(Some(extract_attribute_names(
+                    &attr_names_obj,
+                )?));
+            } else {
+                return bad_input(format!("'{}' must be an object", ATTRIBUTE_NAMES_KEY));
+            }
+        }
+
+        if let Some(attr_values) = opts.get(ATTRIBUTE_VALUES_KEY) {
+            if let Ok(attr_values_obj) = attr_values.borrow_ref::<Object>() {
+                builder = builder.set_expression_attribute_values(Some(
+                    rune_object_to_alternator_map(&attr_values_obj)?,
+                ));
+            } else {
+                return bad_input(format!("'{}' must be an object", ATTRIBUTE_VALUES_KEY));
+            }
+        }
     }
 
     handle_request(&ctx, builder).await?;
@@ -586,35 +595,47 @@ pub async fn get(
             opts.deref(),
             "get",
             &[
-                "consistent_read",
-                "projection_expression",
-                "attribute_names",
-                "with_result",
+                CONSISTENT_READ_KEY,
+                PROJECTION_EXPRESSION_KEY,
+                ATTRIBUTE_NAMES_KEY,
+                WITH_RESULT_KEY,
             ],
         )?;
-        if let Some(b) = opts.get("consistent_read").and_then(|v| v.as_bool().ok()) {
-            builder = builder.consistent_read(b);
+
+        if let Some(v) = opts.get(CONSISTENT_READ_KEY) {
+            builder = builder.consistent_read(match v.as_bool() {
+                Ok(b) => b,
+                _ => return bad_input(format!("'{}' must be a boolean", CONSISTENT_READ_KEY)),
+            });
         }
-        if let Some(proj) = opts
-            .get("projection_expression")
-            .and_then(|v| v.borrow_ref::<rune::alloc::String>().ok())
-        {
-            builder = builder.projection_expression(proj.as_str().to_string());
+        if let Some(proj) = opts.get(PROJECTION_EXPRESSION_KEY) {
+            if let Ok(s) = proj.borrow_ref::<rune::alloc::String>() {
+                builder = builder.projection_expression(s.as_str().to_string());
+            } else {
+                return bad_input(format!("'{}' must be a string", PROJECTION_EXPRESSION_KEY));
+            }
         }
-        if let Some(attr_names) = opts
-            .get("attribute_names")
-            .and_then(|v| v.borrow_ref::<Object>().ok())
-        {
-            builder =
-                builder.set_expression_attribute_names(Some(extract_attribute_names(&attr_names)?));
+        if let Some(attr_names) = opts.get(ATTRIBUTE_NAMES_KEY) {
+            if let Ok(obj) = attr_names.borrow_ref::<Object>() {
+                builder =
+                    builder.set_expression_attribute_names(Some(extract_attribute_names(&obj)?));
+            } else {
+                return bad_input(format!("'{}' must be an object", ATTRIBUTE_NAMES_KEY));
+            }
         }
     }
 
     let result = handle_request(&ctx, builder).await?;
 
     if let Ok(opts) = options.borrow_ref::<Object>() {
-        if opts.get("with_result").and_then(|v| v.as_bool().ok()) == Some(true) {
-            return Ok(result.into_iter().next().to_value()?);
+        if let Some(v) = opts.get(WITH_RESULT_KEY) {
+            if let Ok(b) = v.as_bool() {
+                if b {
+                    return Ok(result.into_iter().next().to_value()?);
+                }
+            } else {
+                return bad_input(format!("'{}' must be a boolean", WITH_RESULT_KEY));
+            }
         }
     }
 
@@ -646,39 +667,49 @@ pub async fn update(
         .table_name(table_name.deref())
         .set_key(Some(rune_object_to_alternator_map(&key)?));
 
-    if let Some(v) = params.get("update") {
-        if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
-            builder = builder.update_expression(s.as_str().to_string());
-        }
-    }
-
-    if let Some(v) = params.get("attribute_names") {
-        if let Ok(obj) = v.borrow_ref::<Object>() {
-            builder = builder.set_expression_attribute_names(Some(extract_attribute_names(&obj)?));
-        }
-    }
-    if let Some(v) = params.get("condition_expression") {
-        if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
-            builder = builder.condition_expression(s.as_str().to_string());
-        }
-    }
-
-    if let Some(v) = params.get("attribute_values") {
-        if let Ok(obj) = v.borrow_ref::<Object>() {
-            builder =
-                builder.set_expression_attribute_values(Some(rune_object_to_alternator_map(&obj)?));
-        }
-    }
     check_invalid_params(
         &params,
         "update",
         &[
-            "update",
-            "condition_expression",
-            "attribute_names",
-            "attribute_values",
+            UPDATE_EXPRESSION_KEY,
+            CONDITION_EXPRESSION_KEY,
+            ATTRIBUTE_NAMES_KEY,
+            ATTRIBUTE_VALUES_KEY,
         ],
     )?;
+
+    if let Some(v) = params.get(UPDATE_EXPRESSION_KEY) {
+        if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
+            builder = builder.update_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", UPDATE_EXPRESSION_KEY));
+        }
+    }
+
+    if let Some(v) = params.get(ATTRIBUTE_NAMES_KEY) {
+        if let Ok(obj) = v.borrow_ref::<Object>() {
+            builder = builder.set_expression_attribute_names(Some(extract_attribute_names(&obj)?));
+        } else {
+            return bad_input(format!("'{}' must be an object", ATTRIBUTE_NAMES_KEY));
+        }
+    }
+    if let Some(v) = params.get(CONDITION_EXPRESSION_KEY) {
+        if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
+            builder = builder.condition_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", CONDITION_EXPRESSION_KEY));
+        }
+    }
+
+    if let Some(v) = params.get(ATTRIBUTE_VALUES_KEY) {
+        if let Ok(obj) = v.borrow_ref::<Object>() {
+            builder =
+                builder.set_expression_attribute_values(Some(rune_object_to_alternator_map(&obj)?));
+        } else {
+            return bad_input(format!("'{}' must be an object", ATTRIBUTE_VALUES_KEY));
+        }
+    }
+
     handle_request(&ctx, builder).await?;
 
     Ok(())
@@ -713,20 +744,32 @@ pub async fn batch_get_item(
     let mut consistent_read = false;
 
     if let Ok(opts_ref) = options.borrow_ref::<Object>() {
-        if let Some(c) = opts_ref
-            .get("consistent_read")
-            .and_then(|v| v.as_bool().ok())
-        {
-            consistent_read = c;
+        check_invalid_params(
+            opts_ref.deref(),
+            "batch_get_item",
+            &[CONSISTENT_READ_KEY, WITH_RESULT_KEY, GET_UNPROCESSED_KEY],
+        )?;
+
+        if let Some(v) = opts_ref.get(CONSISTENT_READ_KEY) {
+            if let Ok(c) = v.as_bool() {
+                consistent_read = c;
+            } else {
+                return bad_input(format!("'{}' must be a boolean", CONSISTENT_READ_KEY));
+            }
         }
-        if let Some(w) = opts_ref.get("with_result").and_then(|v| v.as_bool().ok()) {
-            with_result = w;
+        if let Some(v) = opts_ref.get(WITH_RESULT_KEY) {
+            if let Ok(w) = v.as_bool() {
+                with_result = w;
+            } else {
+                return bad_input(format!("'{}' must be a boolean", WITH_RESULT_KEY));
+            }
         }
-        if let Some(u) = opts_ref
-            .get("get_unprocessed")
-            .and_then(|v| v.as_bool().ok())
-        {
-            get_unprocessed = u;
+        if let Some(v) = opts_ref.get(GET_UNPROCESSED_KEY) {
+            if let Ok(u) = v.as_bool() {
+                get_unprocessed = u;
+            } else {
+                return bad_input(format!("'{}' must be a boolean", GET_UNPROCESSED_KEY));
+            }
         }
     }
 
@@ -752,7 +795,7 @@ pub async fn batch_get_item(
                     check_invalid_params(
                         &obj_ref,
                         "batch_get_item request object",
-                        &["keys", "projection_expression", "attribute_names"],
+                        &["keys", PROJECTION_EXPRESSION_KEY, ATTRIBUTE_NAMES_KEY],
                     )?;
 
                     let keys = if let Some(v) = obj_ref.get("keys") {
@@ -778,13 +821,16 @@ pub async fn batch_get_item(
                         if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
                             Some(s.as_str().to_string())
                         } else {
-                            return bad_input("projection_expression must be a string");
+                            return bad_input(format!(
+                                "'{}' must be a string",
+                                PROJECTION_EXPRESSION_KEY
+                            ));
                         }
                     } else {
                         None
                     };
 
-                    let attr_names = if let Some(v) = obj_ref.get("attribute_names") {
+                    let attr_names = if let Some(v) = obj_ref.get(ATTRIBUTE_NAMES_KEY) {
                         if let Ok(names) = v.borrow_ref::<Object>() {
                             Some(extract_attribute_names(&names)?)
                         } else {
@@ -831,7 +877,6 @@ pub async fn batch_get_item(
     }
     let (result_items, token) =
         handle_request_with_pagination(&ctx, builder, !get_unprocessed).await?;
-
     format_batch_result(result_items, token, !get_unprocessed, with_result)
 }
 
@@ -855,11 +900,13 @@ pub async fn batch_write_item(
     let mut get_unprocessed = false;
 
     if let Ok(opts_ref) = options.borrow_ref::<Object>() {
-        if let Some(x) = opts_ref
-            .get("get_unprocessed")
-            .and_then(|v| v.as_bool().ok())
-        {
-            get_unprocessed = x;
+        check_invalid_params(opts_ref.deref(), "batch_write_item", &[GET_UNPROCESSED_KEY])?;
+        if let Some(v) = opts_ref.get(GET_UNPROCESSED_KEY) {
+            if let Ok(u) = v.as_bool() {
+                get_unprocessed = u;
+            } else {
+                return bad_input(format!("'{}' must be a boolean", GET_UNPROCESSED_KEY));
+            }
         }
     }
 
@@ -876,6 +923,11 @@ pub async fn batch_write_item(
                 .iter()
                 .map(|req_val| {
                     let req_ref = if let Ok(obj) = req_val.borrow_ref::<Object>() {
+                        check_invalid_params(
+                            obj.deref(),
+                            "write_request",
+                            &["type", "item", "key"],
+                        )?;
                         obj
                     } else {
                         return bad_input("Each write request must be an object");
@@ -890,7 +942,7 @@ pub async fn batch_write_item(
                         _ => {
                             return bad_input(
                                 "Write request must have a 'type' field (put or delete)",
-                            )
+                            );
                         }
                     };
 
@@ -900,7 +952,9 @@ pub async fn batch_write_item(
                                 Some(v) if v.borrow_ref::<Object>().is_ok() => {
                                     v.borrow_ref::<Object>().unwrap()
                                 }
-                                _ => return bad_input("Put request must have an 'item' field"),
+                                _ => {
+                                    return bad_input("Put request must have an 'item' field");
+                                }
                             };
 
                             let item_map = rune_object_to_alternator_map(&item_obj)?;
@@ -916,7 +970,9 @@ pub async fn batch_write_item(
                                 Some(v) if v.borrow_ref::<Object>().is_ok() => {
                                     v.borrow_ref::<Object>().unwrap()
                                 }
-                                _ => return bad_input("Delete request must have a 'key' field"),
+                                _ => {
+                                    return bad_input("Delete request must have a 'key' field");
+                                }
                             };
 
                             let key_map = rune_object_to_alternator_map(&key_obj)?;
@@ -982,83 +1038,106 @@ pub async fn query(
 
     let mut builder = client.query().table_name(table_name.deref());
 
-    if let Some(v) = params.get("query") {
+    check_invalid_params(
+        &params,
+        "query",
+        &[
+            QUERY_EXPRESSION_KEY,
+            FILTER_EXPRESSION_KEY,
+            PROJECTION_EXPRESSION_KEY,
+            ATTRIBUTE_NAMES_KEY,
+            ATTRIBUTE_VALUES_KEY,
+            CONSISTENT_READ_KEY,
+            LIMIT_KEY,
+            VALIDATION_KEY,
+            WITH_RESULT_KEY,
+        ],
+    )?;
+
+    if let Some(v) = params.get(QUERY_EXPRESSION_KEY) {
         if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
             builder = builder.key_condition_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", QUERY_EXPRESSION_KEY));
         }
     }
 
-    if let Some(v) = params.get("filter") {
+    if let Some(v) = params.get(FILTER_EXPRESSION_KEY) {
         if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
             builder = builder.filter_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", FILTER_EXPRESSION_KEY));
         }
     }
 
-    if let Some(proj) = params.get("projection_expression") {
+    if let Some(proj) = params.get(PROJECTION_EXPRESSION_KEY) {
         if let Ok(s) = proj.borrow_ref::<rune::alloc::String>() {
             builder = builder.projection_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", PROJECTION_EXPRESSION_KEY));
         }
     }
 
-    if let Some(v) = params.get("attribute_names") {
+    if let Some(v) = params.get(ATTRIBUTE_NAMES_KEY) {
         if let Ok(obj) = v.borrow_ref::<Object>() {
             builder = builder.set_expression_attribute_names(Some(extract_attribute_names(&obj)?));
+        } else {
+            return bad_input(format!("'{}' must be an object", ATTRIBUTE_NAMES_KEY));
         }
     }
 
-    if let Some(v) = params.get("attribute_values") {
+    if let Some(v) = params.get(ATTRIBUTE_VALUES_KEY) {
         if let Ok(obj) = v.borrow_ref::<Object>() {
             builder =
                 builder.set_expression_attribute_values(Some(rune_object_to_alternator_map(&obj)?));
+        } else {
+            return bad_input(format!("'{}' must be an object", ATTRIBUTE_VALUES_KEY));
         }
     }
 
-    if let Some(b) = params.get("consistent_read").and_then(|v| v.as_bool().ok()) {
-        builder = builder.consistent_read(b);
+    if let Some(v) = params.get(CONSISTENT_READ_KEY) {
+        builder = builder.consistent_read(match v.as_bool() {
+            Ok(b) => b,
+            _ => return bad_input(format!("'{}' must be a boolean", CONSISTENT_READ_KEY)),
+        });
     }
 
-    if let Some(limit_val) = params.get("limit") {
+    if let Some(limit_val) = params.get(LIMIT_KEY) {
         if let Ok(i) = limit_val.as_signed() {
             builder = builder.limit(match i32::try_from(i) {
                 Ok(val) => val,
-                Err(_) => return bad_input("limit is out of range"),
+                Err(_) => return bad_input(format!("'{}' is out of range", LIMIT_KEY)),
             });
         } else {
-            return bad_input("limit must be an integer");
+            return bad_input(format!("'{}' must be an integer", LIMIT_KEY));
         }
     }
 
-    let validation = if let Some(v) = params.get("validation") {
+    let validation = if let Some(v) = params.get(VALIDATION_KEY) {
         if let Ok(vec) = v.borrow_ref::<rune::runtime::Vec>() {
             Some(
                 extract_validation_args(vec.to_vec())
                     .map_err(|s| AlternatorError::new(AlternatorErrorKind::BadInput(s)))?,
             )
-        } else {
+        } else if v.clone().into_unit().is_ok() {
             None
+        } else {
+            return bad_input(format!("'{}' must be a list or ()", VALIDATION_KEY));
         }
     } else {
         None
     };
-    check_invalid_params(
-        &params,
-        "query",
-        &[
-            "query",
-            "filter",
-            "projection_expression",
-            "attribute_names",
-            "attribute_values",
-            "consistent_read",
-            "limit",
-            "validation",
-            "with_result",
-        ],
-    )?;
+
     let result = handle_request_with_validation(&ctx, builder, validation, "Query").await?;
 
-    if params.get("with_result").and_then(|v| v.as_bool().ok()) == Some(true) {
-        return Ok(result.to_value()?);
+    if let Some(v) = params.get(WITH_RESULT_KEY) {
+        if let Ok(b) = v.as_bool() {
+            if b {
+                return Ok(result.to_value()?);
+            }
+        } else {
+            return bad_input(format!("'{}' must be a boolean", WITH_RESULT_KEY));
+        }
     }
 
     Ok(Value::from(()))
@@ -1090,76 +1169,97 @@ pub async fn scan(
 
     let mut builder = client.scan().table_name(table_name.deref());
 
-    if let Some(v) = params.get("filter") {
+    check_invalid_params(
+        &params,
+        "scan",
+        &[
+            FILTER_EXPRESSION_KEY,
+            PROJECTION_EXPRESSION_KEY,
+            ATTRIBUTE_NAMES_KEY,
+            ATTRIBUTE_VALUES_KEY,
+            CONSISTENT_READ_KEY,
+            LIMIT_KEY,
+            VALIDATION_KEY,
+            WITH_RESULT_KEY,
+        ],
+    )?;
+
+    if let Some(v) = params.get(FILTER_EXPRESSION_KEY) {
         if let Ok(s) = v.borrow_ref::<rune::alloc::String>() {
             builder = builder.filter_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", FILTER_EXPRESSION_KEY));
         }
     }
 
-    if let Some(proj) = params.get("projection_expression") {
+    if let Some(proj) = params.get(PROJECTION_EXPRESSION_KEY) {
         if let Ok(s) = proj.borrow_ref::<rune::alloc::String>() {
             builder = builder.projection_expression(s.as_str().to_string());
+        } else {
+            return bad_input(format!("'{}' must be a string", PROJECTION_EXPRESSION_KEY));
         }
     }
 
-    if let Some(v) = params.get("attribute_names") {
+    if let Some(v) = params.get(ATTRIBUTE_NAMES_KEY) {
         if let Ok(obj) = v.borrow_ref::<Object>() {
             builder = builder.set_expression_attribute_names(Some(extract_attribute_names(&obj)?));
+        } else {
+            return bad_input(format!("'{}' must be an object", ATTRIBUTE_NAMES_KEY));
         }
     }
 
-    if let Some(v) = params.get("attribute_values") {
+    if let Some(v) = params.get(ATTRIBUTE_VALUES_KEY) {
         if let Ok(obj) = v.borrow_ref::<Object>() {
             builder =
                 builder.set_expression_attribute_values(Some(rune_object_to_alternator_map(&obj)?));
+        } else {
+            return bad_input(format!("'{}' must be an object", ATTRIBUTE_VALUES_KEY));
         }
     }
 
-    if let Some(b) = params.get("consistent_read").and_then(|v| v.as_bool().ok()) {
-        builder = builder.consistent_read(b);
+    if let Some(v) = params.get(CONSISTENT_READ_KEY) {
+        builder = builder.consistent_read(match v.as_bool() {
+            Ok(b) => b,
+            _ => return bad_input(format!("'{}' must be a boolean", CONSISTENT_READ_KEY)),
+        });
     }
 
-    if let Some(limit_val) = params.get("limit") {
+    if let Some(limit_val) = params.get(LIMIT_KEY) {
         if let Ok(i) = limit_val.as_signed() {
             builder = builder.limit(match i32::try_from(i) {
                 Ok(val) => val,
-                Err(_) => return bad_input("limit is out of range"),
+                Err(_) => return bad_input(format!("'{}' is out of range", LIMIT_KEY)),
             });
         } else {
-            return bad_input("limit must be an integer");
+            return bad_input(format!("'{}' must be an integer", LIMIT_KEY));
         }
     }
 
-    let validation = if let Some(v) = params.get("validation") {
+    let validation = if let Some(v) = params.get(VALIDATION_KEY) {
         if let Ok(vec) = v.borrow_ref::<rune::runtime::Vec>() {
             Some(
                 extract_validation_args(vec.to_vec())
                     .map_err(|s| AlternatorError::new(AlternatorErrorKind::BadInput(s)))?,
             )
-        } else {
+        } else if v.clone().into_unit().is_ok() {
             None
+        } else {
+            return bad_input(format!("'{}' must be a list or ()", VALIDATION_KEY));
         }
     } else {
         None
     };
-    check_invalid_params(
-        &params,
-        "scan",
-        &[
-            "filter",
-            "projection_expression",
-            "attribute_names",
-            "attribute_values",
-            "consistent_read",
-            "limit",
-            "validation",
-            "with_result",
-        ],
-    )?;
+
     let result = handle_request_with_validation(&ctx, builder, validation, "Scan").await?;
 
-    if params.get("with_result").and_then(|v| v.as_bool().ok()) == Some(true) {
-        return Ok(result.to_value()?);
+    if let Some(v) = params.get(WITH_RESULT_KEY) {
+        if let Ok(b) = v.as_bool() {
+            if b {
+                return Ok(result.to_value()?);
+            }
+        } else {
+            return bad_input(format!("'{}' must be a boolean", WITH_RESULT_KEY));
+        }
     }
 
     Ok(Value::from(()))

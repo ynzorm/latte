@@ -6,13 +6,37 @@ use latte::*;
 
 const TABLE = "invalid_params";
 
+// Helper function to check that operation returns error related to a specific parameter or message.
+async fn assert_bad_param(res, func_name, param_name) {
+    match res {
+        Ok(_) => panic(`Expected error from ${func_name} due to invalid parameter ${param_name}, but got Ok`),
+        Err(e) => {
+            let err_msg = format!("{}", e);
+            if !err_msg.contains(param_name) {
+                panic(`Expected error message to contain "${param_name}", but got: "${err_msg}"`);
+            }
+        }
+    }
+}
+
 pub async fn schema(db) {
     // Drop the table (ignoring errors if it doesn't exist) to ensure we always have the up-to-date schema.
     db.delete_table(TABLE).await;
-    assert!(db.create_table(TABLE, #{
+
+    // Check that invalid params for create_table fail with correct message
+    assert_bad_param(db.create_table("other_table", #{
         primry_key: "pk",
         sort_ey: #{name: "sk", type: "N"}
-    }).await.is_err());
+    }).await, "create_table", "primry_key");
+
+    // Create the table properly
+    // If we don't do this, subsequent tests in `run` might fail with TableNotFound
+    // instead of parameter validation errors if the backend checks table existence first.
+    db.create_table(TABLE, #{
+        primary_key: "pk",
+        sort_key: #{name: "sk", type: "N"}
+    }).await.unwrap();
+
 }
 
 // Runs a sequence of operations to verify the API.
@@ -25,12 +49,12 @@ pub async fn run(db, i) {
         pk: user_id,
         sk: user_order
     };
-    assert!(db.get(TABLE, key, #{
+    assert_bad_param(db.get(TABLE, key, #{
         consnt_read: true
-    }).await.is_err());
+    }).await, "get", "consnt_read");
 
     // UPDATE Item
-    assert!(db.update(TABLE, key, #{
+    assert_bad_param(db.update(TABLE, key, #{
         upd: "SET #n = :new_name, age = :new_age",
         "attrite_names": #{
             "#n": "name"
@@ -39,10 +63,10 @@ pub async fn run(db, i) {
             ":new_name": "Other name",
             ":new_age": 21
         }
-    }).await.is_err());
+    }).await, "update", "upd");
 
     // QUERY
-    assert!(db.query(TABLE, #{
+    assert_bad_param(db.query(TABLE, #{
         query: "pk = :pk",
         "attribute_values": #{
             ":pk": user_id
@@ -50,24 +74,24 @@ pub async fn run(db, i) {
         limit: 1,
         consistent_read: true,
         bad: 0,
-    }).await.is_err());
+    }).await, "query", "bad");
 
     // QUERY with validation
-    assert!(db.query(TABLE, #{
+    assert_bad_param(db.query(TABLE, #{
         query: "pk = :pk",
         "attribute_values": #{
             ":pk": user_id
         },
         val: [1]
-    }).await.is_err());
+    }).await, "query", "val");
 
     // SCAN
-    assert!(db.scan(TABLE, #{
+    assert_bad_param(db.scan(TABLE, #{
         filter: "age > :min_age",
         "attribute_vals": #{
             ":min_age": 18
         }
-    }).await.is_err());
+    }).await, "scan", "attribute_vals");
 
     let batch_size = 5;
     let base_id = `user_${i}_`;
@@ -85,7 +109,7 @@ pub async fn run(db, i) {
         });
     }
     
-    assert!(db.batch_write_item(write_requests, #{const_read: true}).await.is_err());
+    assert_bad_param(db.batch_write_item(write_requests, #{const_read: true}).await, "batch_write_item", "const_read");
 
     // Batch get item
     let get_requests = #{};
@@ -96,23 +120,54 @@ pub async fn run(db, i) {
         });
     }
     
-    assert!(db.batch_get_item(get_requests,#{result: false}).await.is_err());
+    assert_bad_param(db.batch_get_item(get_requests, #{result: false}).await, "batch_get_item", "result");
 
-    // Limit handling
-    assert!(db.query(TABLE, #{
+    // Limit handling (large limits that should be rejected)
+    assert_bad_param(db.query(TABLE, #{
         query: "pk = :pk",
         "attribute_values": #{
             ":pk": user_id
         },
         limit: 1099511627776,
         consistent_read: true
-    }).await.is_err());
+    }).await, "query", "limit is out of range");
     
-    assert!(db.scan(TABLE, #{
+    assert_bad_param(db.scan(TABLE, #{
         filter: "age > :min_age",
         "attribute_vals": #{
             ":min_age": 18
         },
         limit: 1099511627776
-    }).await.is_err());
+    }).await, "scan", "limit is out of range");
+
+    // Query: consistent_read must be bool
+    assert_bad_param(db.query(TABLE, #{
+        query: "pk = :pk",
+        attribute_values: #{":pk": user_id},
+        consistent_read: "yes"
+    }).await, "query", "consistent_read");
+
+    // Scan: filter must be string
+    assert_bad_param(db.scan(TABLE, #{
+        filter: 123
+    }).await, "scan", "filter");
+
+    // Create Table: primary_key must be object or string
+    assert_bad_param(db.create_table("fail_table", #{
+        primary_key: 123
+    }).await, "create_table", "primary_key");
+
+    // Type validation for condition_expression
+    assert_bad_param(db.put(TABLE, #{pk: user_id, sk: user_order}, #{
+        condition_expression: 123
+    }).await, "put", "condition_expression");
+
+    assert_bad_param(db.delete(TABLE, key, #{
+        condition_expression: 123
+    }).await, "delete", "condition_expression");
+
+    assert_bad_param(db.update(TABLE, key, #{
+        update: "SET age = :new_age",
+        condition_expression: 123
+    }).await, "update", "condition_expression");
 }
