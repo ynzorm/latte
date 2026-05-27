@@ -13,3 +13,12 @@ f20ae043ab63bb32d5ae76e3c65150ad6af29a07  # fixup! Add rune alternator api funct
 29e1a5dab8b9de70fb625dd3d0bd374166702924  # fixup! Add rune alternator api functions.
 bee43826dc564709a4ae92098ce77f5e8badd6ba  # Move validation args parsing logic to common functions.
 81c4dadcf067b04d71e749a24497ff23ac9af653  # fixup! Move validation args parsing logic to common functions.
+a0f9ecbab03154b6168ce9cae5932a560de30e92  # Add ability to manually handle batch unprocessed items.
+d7822fc8b98d3fc58b74bc4987b84798402e6d02  # fixup! Add ability to manually handle batch unprocessed items.
+7cac86f00565e2b555517317d93494fe7a630ad5  # Implement batch_get_item and batch_write_item.
+01ceeb5bbc8835ea76745b07dc15234c18e914f0  # fixup! Implement batch_get_item and batch_write_item.
+a1dd717739c4a14580bc9183a4f21e4bd30be089  # Add helper functions for creating Alternator Sets and add usage examples.
+cc1617543f24436be52b5691a933e5ac55277fa0  # fixup! Add helper functions for creating Alternator Sets and add usage examples.
+1d37fa931a4efbb1ddee29390f1ae1b321acfcb0  # Add credentials to Alternator's DbConnectionConf and use them in connect
+07dec76bf2cec3ecd017f38bdf7ca4f142ed7c98  # fixup! Add credentials to Alternator's DbConnectionConf and use them in connect
+5e4661e6595da31ba146c7785eaa911f4a95f547  # Refactor ConnectionConf to allow for database specific options.
