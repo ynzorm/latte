@@ -90,11 +90,24 @@ To build the **alternator** (DynamoDB-compatible) binary instead:
 RUSTFLAGS="--cfg fetch_extended_version_info --cfg tokio_unstable" cargo install --path . --no-default-features --features alternator
 ```
 
+To build the **alternator-new** binary, which talks to ScyllaDB Alternator through the dedicated
+ScyllaDB alternator-driver instead of the AWS SDK:
+
+```shell
+RUSTFLAGS="--cfg fetch_extended_version_info --cfg tokio_unstable" cargo install --path . --no-default-features --features alternator-new
+```
+
+This produces the `latte-alternator-new` binary. It exposes the same workload API as
+`latte-alternator` plus extra driver tuning options — see [ALTERNATOR.md](ALTERNATOR.md).
+
 ## From release binaries
 
 1. [Open Latte releases page on GitHub](https://github.com/scylladb/latte/releases)
 2. Click drop-down for `Assets` of any of the releases
 3. Download `latte-<version>--<os>` for CQL or `latte-alternator-<version>--<os>` for Alternator
+
+> **Note:** `latte-alternator-new` is currently source-build only — it is not yet published as a release
+> binary or bundled in the docker image.
 
 ## From docker image
 
