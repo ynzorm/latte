@@ -39,6 +39,8 @@ pub struct Context {
     page_size: u64,
     statements: Arc<TryLock<HashMap<String, Arc<PreparedStatement>>>>,
     pub stats: Arc<TryLock<SessionStats>>,
+    pub report_metadata: Arc<TryLock<HashMap<String, String>>>,
+    pub metric_orientations: Arc<TryLock<HashMap<String, i8>>>,
     pub retry_number: u64,
     pub retry_interval: RetryInterval,
     pub validation_strategy: ValidationStrategy,
@@ -49,6 +51,10 @@ pub struct Context {
     pub preferred_datacenter: String,
     #[rune(get)]
     pub preferred_rack: String,
+    /// True on per-worker deep copies made by [`Context::clone`].
+    /// Run-level state written through such a copy (report metadata, metric
+    /// orientations) is never merged back, so the scripting API rejects those calls.
+    pub is_worker_clone: bool,
     #[rune(get)]
     pub data: Value,
 }
@@ -79,6 +85,8 @@ impl Context {
             page_size,
             statements: Arc::new(TryLock::new(HashMap::new())),
             stats: Arc::new(TryLock::new(SessionStats::new())),
+            report_metadata: Arc::new(TryLock::new(HashMap::new())),
+            metric_orientations: Arc::new(TryLock::new(HashMap::new())),
             retry_number,
             retry_interval,
             validation_strategy,
@@ -86,6 +94,7 @@ impl Context {
             load_cycle_count: 0,
             preferred_datacenter,
             preferred_rack,
+            is_worker_clone: false,
             data,
         }
     }
@@ -102,6 +111,12 @@ impl Context {
             page_size: self.page_size,
             statements: Arc::new(TryLock::new(self.statements.try_lock().unwrap().clone())),
             stats: Arc::new(TryLock::new(SessionStats::default())),
+            report_metadata: Arc::new(TryLock::new(
+                self.report_metadata.try_lock().unwrap().clone(),
+            )),
+            metric_orientations: Arc::new(TryLock::new(
+                self.metric_orientations.try_lock().unwrap().clone(),
+            )),
             retry_number: self.retry_number,
             retry_interval: self.retry_interval,
             validation_strategy: self.validation_strategy,
@@ -111,6 +126,7 @@ impl Context {
             load_cycle_count: self.load_cycle_count,
             preferred_datacenter: self.preferred_datacenter.clone(),
             preferred_rack: self.preferred_rack.clone(),
+            is_worker_clone: true,
             data: deserialized,
             start_time: TryLock::new(*self.start_time.try_lock().unwrap()),
         })
@@ -126,6 +142,8 @@ impl Context {
             page_size: self.page_size,
             statements: Arc::clone(&self.statements),
             stats: Arc::clone(&self.stats),
+            report_metadata: Arc::clone(&self.report_metadata),
+            metric_orientations: Arc::clone(&self.metric_orientations),
             retry_number: self.retry_number,
             retry_interval: self.retry_interval,
             validation_strategy: self.validation_strategy,
@@ -133,6 +151,7 @@ impl Context {
             load_cycle_count: self.load_cycle_count,
             preferred_datacenter: self.preferred_datacenter.clone(),
             preferred_rack: self.preferred_rack.clone(),
+            is_worker_clone: self.is_worker_clone,
             data: self.data.clone(),
         }
     }
@@ -567,6 +586,32 @@ impl Context {
                 "'session' is not defined".to_string(),
             ))),
         }
+    }
+
+    pub fn set_report_field(&self, key: &str, value: &str) {
+        self.report_metadata
+            .try_lock()
+            .unwrap()
+            .insert(key.to_string(), value.to_string());
+    }
+
+    pub fn report_metadata_snapshot(&self) -> HashMap<String, String> {
+        self.report_metadata.try_lock().unwrap().clone()
+    }
+
+    pub fn record_metric(&self, name: &str, value: f64) {
+        self.stats.try_lock().unwrap().record_metric(name, value);
+    }
+
+    pub fn declare_metric(&self, name: &str, orientation: i8) {
+        self.metric_orientations
+            .try_lock()
+            .unwrap()
+            .insert(name.to_string(), orientation);
+    }
+
+    pub fn metric_orientations_snapshot(&self) -> HashMap<String, i8> {
+        self.metric_orientations.try_lock().unwrap().clone()
     }
 
     /// Returns the current accumulated request stats snapshot and resets the stats.

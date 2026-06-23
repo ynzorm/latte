@@ -668,6 +668,27 @@ impl BenchmarkCmp<'_> {
 /// Formats all benchmark stats
 impl Display for BenchmarkCmp<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
+        if !self.v1.run_metadata.is_empty() {
+            writeln!(f, "{}", fmt_section_header("RUN METADATA"))?;
+            if self.v2.is_some() {
+                writeln!(f, "{}", fmt_cmp_header(true))?;
+            }
+            let keys = self
+                .v1
+                .run_metadata
+                .keys()
+                .chain(self.v2.iter().flat_map(|v2| v2.run_metadata.keys()))
+                .sorted()
+                .dedup();
+            for key in keys {
+                let l = self.line(key, "", |s| {
+                    s.run_metadata.get(key).cloned().unwrap_or_default()
+                });
+                writeln!(f, "{l}")?;
+            }
+            writeln!(f)?;
+        }
+
         writeln!(f, "{}", fmt_section_header("SUMMARY STATS"))?;
         if self.v2.is_some() {
             writeln!(f, "{}", fmt_cmp_header(true))?;
@@ -777,6 +798,54 @@ impl Display for BenchmarkCmp<'_> {
                     })
                     .with_orientation(-1)
                     .with_significance(self.cmp_resp_time_percentile(*p));
+                writeln!(f, "{l}")?;
+            }
+        }
+
+        let metric_names = self
+            .v1
+            .custom_metrics
+            .keys()
+            .chain(self.v2.iter().flat_map(|v2| v2.custom_metrics.keys()))
+            .sorted()
+            .dedup();
+        for name in metric_names {
+            writeln!(f)?;
+            writeln!(
+                f,
+                "{}",
+                fmt_section_header(format!("CUSTOM METRIC {name} ").as_str())
+            )?;
+            if self.v2.is_some() {
+                writeln!(f, "{}", fmt_cmp_header(true))?;
+            }
+
+            let orientation = self
+                .v1
+                .custom_metrics
+                .get(name)
+                .or_else(|| self.v2.and_then(|v2| v2.custom_metrics.get(name)))
+                .map(|m| m.orientation)
+                .unwrap_or(0);
+            let l = self
+                .line("Mean", "", |s| {
+                    Quantity::from(s.custom_metrics.get(name).map(|m| m.distribution.mean))
+                        .with_precision(4)
+                })
+                .with_significance(self.cmp_mean_custom_metric(name))
+                .with_orientation(orientation);
+            writeln!(f, "{l}")?;
+            for p in resp_time_percentiles.iter() {
+                let l = self
+                    .line(p.name(), "", |s| {
+                        let v = s
+                            .custom_metrics
+                            .get(name)
+                            .map(|m| m.distribution.percentiles.get(*p));
+                        Quantity::from(v).with_precision(4)
+                    })
+                    .with_significance(self.cmp_custom_metric_percentile(name, *p))
+                    .with_orientation(orientation);
                 writeln!(f, "{l}")?;
             }
         }

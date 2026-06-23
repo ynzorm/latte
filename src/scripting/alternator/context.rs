@@ -17,6 +17,8 @@ pub struct Context {
     client: Option<Client>,
     page_size: u64,
     pub stats: Arc<TryLock<SessionStats>>,
+    pub report_metadata: Arc<TryLock<HashMap<String, String>>>,
+    pub metric_orientations: Arc<TryLock<HashMap<String, i8>>>,
     pub start_time: TryLock<Instant>,
     pub retry_number: u64,
     pub retry_interval: RetryInterval,
@@ -24,6 +26,10 @@ pub struct Context {
     pub partition_row_presets: Arc<TryLock<HashMap<String, RowDistributionPreset>>>,
     #[rune(get, set, add_assign, copy)]
     pub load_cycle_count: u64,
+    /// True on per-worker deep copies made by [`Context::clone`].
+    /// Run-level state written through such a copy (report metadata, metric
+    /// orientations) is never merged back, so the scripting API rejects those calls.
+    pub is_worker_clone: bool,
     #[rune(get)]
     pub data: Value,
 }
@@ -43,12 +49,15 @@ impl Context {
             client,
             page_size,
             stats: Arc::new(TryLock::new(SessionStats::new())),
+            report_metadata: Arc::new(TryLock::new(HashMap::new())),
+            metric_orientations: Arc::new(TryLock::new(HashMap::new())),
             start_time: TryLock::new(Instant::now()),
             retry_number,
             retry_interval,
             validation_strategy,
             partition_row_presets: Arc::new(TryLock::new(HashMap::new())),
             load_cycle_count: 0,
+            is_worker_clone: false,
             data: Value::new(Object::new()).unwrap(),
         }
     }
@@ -60,6 +69,12 @@ impl Context {
             client: self.client.clone(),
             page_size: self.page_size,
             stats: Arc::new(TryLock::new(SessionStats::default())),
+            report_metadata: Arc::new(TryLock::new(
+                self.report_metadata.try_lock().unwrap().clone(),
+            )),
+            metric_orientations: Arc::new(TryLock::new(
+                self.metric_orientations.try_lock().unwrap().clone(),
+            )),
             start_time: TryLock::new(*self.start_time.try_lock().unwrap()),
             retry_number: self.retry_number,
             retry_interval: self.retry_interval,
@@ -68,6 +83,7 @@ impl Context {
                 self.partition_row_presets.try_lock().unwrap().clone(),
             )),
             load_cycle_count: self.load_cycle_count,
+            is_worker_clone: true,
             data: deserialized,
         })
     }
@@ -79,12 +95,15 @@ impl Context {
             client: self.client.clone(),
             page_size: self.page_size,
             stats: Arc::clone(&self.stats),
+            report_metadata: Arc::clone(&self.report_metadata),
+            metric_orientations: Arc::clone(&self.metric_orientations),
             start_time: TryLock::new(*self.start_time.try_lock().unwrap()),
             retry_number: self.retry_number,
             retry_interval: self.retry_interval,
             validation_strategy: self.validation_strategy,
             partition_row_presets: Arc::clone(&self.partition_row_presets),
             load_cycle_count: self.load_cycle_count,
+            is_worker_clone: self.is_worker_clone,
             data: self.data.clone(),
         }
     }
@@ -141,6 +160,32 @@ impl Context {
 
         // We couldn't determine the cluster info.
         Ok(None)
+    }
+
+    pub fn set_report_field(&self, key: &str, value: &str) {
+        self.report_metadata
+            .try_lock()
+            .unwrap()
+            .insert(key.to_string(), value.to_string());
+    }
+
+    pub fn report_metadata_snapshot(&self) -> HashMap<String, String> {
+        self.report_metadata.try_lock().unwrap().clone()
+    }
+
+    pub fn record_metric(&self, name: &str, value: f64) {
+        self.stats.try_lock().unwrap().record_metric(name, value);
+    }
+
+    pub fn declare_metric(&self, name: &str, orientation: i8) {
+        self.metric_orientations
+            .try_lock()
+            .unwrap()
+            .insert(name.to_string(), orientation);
+    }
+
+    pub fn metric_orientations_snapshot(&self) -> HashMap<String, i8> {
+        self.metric_orientations.try_lock().unwrap().clone()
     }
 
     pub fn take_session_stats(&self) -> SessionStats {
