@@ -1,6 +1,8 @@
 use crate::config::PRINT_RETRY_ERROR_LIMIT;
 use crate::stats::latency::LatencyDistributionRecorder;
-use std::collections::HashSet;
+use crate::stats::value::MetricValue;
+use crate::stats::value::ValueDistributionRecorder;
+use std::collections::{HashMap, HashSet};
 use std::time::Duration;
 use tokio::time::Instant;
 
@@ -15,6 +17,7 @@ pub struct SessionStats {
     pub queue_length: u64,
     pub mean_queue_length: f32,
     pub resp_times_ns: LatencyDistributionRecorder,
+    pub custom_metrics: HashMap<String, ValueDistributionRecorder>,
 }
 
 impl SessionStats {
@@ -38,6 +41,19 @@ impl SessionStats {
         self.row_count += row_count;
     }
 
+    pub fn record_metric(&mut self, name: &str, value: f64) {
+        // Called every cycle: avoid allocating the key on the hot path when the
+        // metric already exists.
+        if let Some(recorder) = self.custom_metrics.get_mut(name) {
+            recorder.record(MetricValue(value));
+        } else {
+            self.custom_metrics
+                .entry(name.to_string())
+                .or_default()
+                .record(MetricValue(value));
+        }
+    }
+
     pub fn store_retry_error(&mut self, error_str: String) {
         self.req_retry_count += 1;
         if self.req_retry_count <= PRINT_RETRY_ERROR_LIMIT {
@@ -55,6 +71,7 @@ impl SessionStats {
         self.req_errors.clear();
         self.req_retry_errors.clear();
         self.resp_times_ns.clear();
+        self.custom_metrics.clear();
 
         // note that current queue_length is *not* reset to zero because there
         // might be pending requests and if we set it to zero, that would underflow
@@ -73,6 +90,7 @@ impl Default for SessionStats {
             queue_length: 0,
             mean_queue_length: 0.0,
             resp_times_ns: LatencyDistributionRecorder::default(),
+            custom_metrics: HashMap::new(),
         }
     }
 }
